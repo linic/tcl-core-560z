@@ -1,5 +1,6 @@
 # tcl-core-560z
-tcl-core customized for the Thinkpad 560z. This is based on the .config of [TCL 12.0](http://tinycorelinux.net/12.x/x86/release/src/kernel/config-5.10.3-tinycore).
+tcl-core customized for the Thinkpad 560z. This is based on the .config of 
+[TCL 12.0](http://tinycorelinux.net/12.x/x86/release/src/kernel/config-5.10.3-tinycore).
 
 ## Why?
 The Thinkpad 560z I have has 64 MB of RAM. TCL Core 14.0 is the most recent version of TCL which can be 
@@ -19,10 +20,17 @@ To build the custom linux kernel and core.gz:
 
 To copy them out of a running container: 
 `sudo docker compose -f docker-compose.yml up` and in another terminal 
-`sudo docker exec tcl-core-560z:/home/tc ls` to see the file names and then 
-`sudo docker cp tcl-core-560z:/home/tc/core_linux-5.10.232.gz .` and 
-`sudo docker cp tcl-core-560z:/home/tc/bzImage_linux-5.10.232.gz .`
+`sudo docker exec tcl-core-560z-main-1:/home/tc ls` to see the file names and then 
+`sudo docker cp tcl-core-560z-main-1:/home/tc/core_linux-5.10.232.gz .` and 
+`sudo docker cp tcl-core-560z-main-1:/home/tc/bzImage_linux-5.10.232.gz .`
 
 Get those files on the laptop in your preferred way. 
 Then, edit `tce/boot/extlinux/extlinux.conf` and add a new entry to test these.
 
+## edit-config
+The Dockerfile.edit-config and docker-compose.edit-config.yml here can help edit the .config file which will 
+be used to build the custom kernel.
+
+Build with: `sudo docker compose --progress=plain -f docker-compose.yml build`
+Run with: `sudo docker compose -f docker-compose.yml up`
+Edit the .config with: `sudo docker exec -it tcl-core-560z-edit-config-main-1 sh` and then `make menuconfig`

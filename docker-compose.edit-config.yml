@@ -1,0 +1,7 @@
+services:
+  main:
+    image: linichotmailca/tcl-core-560z-edit-config:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.edit-config
+
