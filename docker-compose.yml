@@ -1,0 +1,7 @@
+services:
+  main:
+    image: linichotmailca/tcl-560z:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+
