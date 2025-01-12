@@ -32,7 +32,7 @@ RUN tar x -f $KERNEL_TAR_XZ
 # Making the kernel, the modules and installing them
 RUN mkdir $KERNEL_MODULES_INSTALL_PATH
 WORKDIR $KERNEL_SOURCE_PATH
-COPY .config .
+COPY slim2.config ./.config
 # IMPORTANT! the .config file has to be owned by tc:staff otherwise the make commands
 # don't load it because they don't have the permission and they default to a default
 # config which breaks in a confusing way.
