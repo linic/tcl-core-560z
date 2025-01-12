@@ -50,13 +50,28 @@ RUN sudo rm -rf $CORE_TEMP_PATH/lib/modules/*
 WORKDIR $HOME_TC
 # Adding our custom built modules which will work with our custom kernel
 RUN sudo cp -r $KERNEL_MODULES_INSTALL_PATH/lib/modules/* $CORE_TEMP_PATH/lib/modules/
-# Copy the script to compress each .ko module to a .ko.gz module as it is in the official core.gz. 
-WORKDIR $CORE_TEMP_PATH/lib/modules
+WORKDIR $CORE_TEMP_PATH/lib/modules/5.10.232-tinycore-560z
+# Let's compress the modules with gzip and advdef since it is like that in the official core.gz
 COPY compress_modules.sh . 
 RUN sudo chown tc:staff compress_modules.sh
 RUN chmod +x compress_modules.sh
 RUN sudo ./compress_modules.sh
 RUN sudo rm ./compress_modules.sh
+# edit modules.* files since they refer to the old .ko file and not the .ko.gz and won't load otherwise.
+COPY edit-modules.dep.order.sh .
+RUN sudo chown tc:staff edit-modules.dep.order.sh
+RUN chmod +x edit-modules.dep.order.sh
+RUN sudo ./edit-modules.dep.order.sh
+RUN sudo rm ./edit-modules.dep.order.sh
+# create the kernel.tclocal
+COPY create-kernel.tclocal.sh .
+RUN sudo chown tc:staff create-kernel.tclocal.sh
+RUN chmod +x create-kernel.tclocal.sh
+RUN sudo ./create-kernel.tclocal.sh
+RUN sudo rm ./create-kernel.tclocal.sh
+# source and build are there by default, but they're not needed
+RUN sudo rm source
+RUN sudo rm build
 # Generate the custom core.gz file as explained in 
 # https://wiki.tinycorelinux.net/doku.php?id=wiki:custom_kernel&s[]=custom&s[]=kernel
 WORKDIR $CORE_TEMP_PATH
