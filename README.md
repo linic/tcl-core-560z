@@ -35,20 +35,14 @@ Build with: `sudo docker compose --progress=plain -f docker-compose.yml build`
 Run with: `sudo docker compose -f docker-compose.yml up`
 Edit the .config with: `sudo docker exec -it tcl-core-560z-edit-config-main-1 sh` and then `make menuconfig`
 
-## Various confiugrations
-- `.config`: quickly customized version of the official TCL `.config`
-- `slim.config`: less kernel features and less modules than `.config`
-- `nomodules.config`: similar to `slim.config`, but without modules and everything is in the kernel
-
-### `slim.config`
-To understand the differences between `.config` and `slim.config` use `diff .config slim.config`.
+## `.config`
+`.config`: customized version of the official TCL `.config`
+To understand the differences between `.config` and `slim.config` use `diff tinycore_configs/config-5.10.3-tinycore .config`
 A short not exhaustive list and maybe not up to date of what has been disabled:
-- ISA
-- PCI
 - USB storage devices
-- Wireless/Wifi
 - Many filesystems such as BTRFS
 - cpuid
 - hybernate & standby
 - acpi video
+- many HID drivers
 
