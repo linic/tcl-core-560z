@@ -1,4 +1,10 @@
 # tcl-core-560z
+
+## Before continuing
+There's a simpler and faster method for customizing 
+[the official `core.gz` here](https://forum.tinycorelinux.net/index.php/topic,27458.msg176935.html#msg176935)
+
+## Summary
 tcl-core customized for the Thinkpad 560z. This is based on the `.config` of 
 [TCL 12.0](http://tinycorelinux.net/12.x/x86/release/src/kernel/config-5.10.3-tinycore).
 
