@@ -3,5 +3,8 @@ services:
     image: linichotmailca/tcl-core-560z-edit-config:latest
     build:
       context: .
+      args:
+        - TCL_VERSION=15.x
+        - KERNEL_VERSION=5.10.233
       dockerfile: Dockerfile.edit-config
 

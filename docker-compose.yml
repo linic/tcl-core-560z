@@ -3,5 +3,9 @@ services:
     image: linichotmailca/tcl-core-560z:latest
     build:
       context: .
+      args:
+        - ITERATION_NUMBER=1
+        - KERNEL_VERSION=5.10.233
+        - TCL_MAJOR_VERSION_NUMBER=15
+        - TCL_VERSION=15.x
       dockerfile: Dockerfile
-

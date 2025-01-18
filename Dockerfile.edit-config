@@ -1,36 +1,28 @@
 # To be able to read all the commands outputs as they get executed:
-# sudo docker compose --progress-plain -f docker-compose.yml build
-# Reusing images from existing repositories as resource images.
-# Defining the image to use to create the final one.
-FROM linichotmailca/tcl-core-x86:15.x-x86 AS final
-# Defining all environment variables.
+# sudo docker compose --progress=plain -f docker-compose.edit-config.yml build
+ARG TCL_VERSION=15.x
+FROM linichotmailca/tcl-core-x86:$TCL_VERSION-x86 AS final
+# Reminder: TCL_VERSION is not available after the FROM because this is a new build stage.
+ARG KERNEL_VERSION=5.10.233
 ENV HOME_TC=/home/tc
-ENV CORE_TEMP_PATH=$HOME_TC/coretmp
-ENV KERNEL_MODULES_INSTALL_PATH=$HOME_TC/modules
-ENV KERNEL_VERSION_NAME=linux-5.10.232
-ENV KERNEL_SOURCE_PATH=$HOME_TC/$KERNEL_VERSION_NAME
-ENV KERNEL_TAR_XZ=$KERNEL_VERSION_NAME.tar.xz
-# Generating and loading the .tcz file for openssl librairies.
 WORKDIR $HOME_TC
-# TCZ required to build the kernel
+# TCZs required to build the kernel
 RUN tce-load -wi compiletc
 RUN tce-load -wi ncursesw-dev
 RUN tce-load -wi perl5
 RUN tce-load -wi bash
 RUN tce-load -wi bc
 RUN tce-load -wi advcomp
-RUN tce-load -wi tmux
-RUN tce-load -wi vim
 # openssl-dev is required when building the kernel
 RUN tce-load -wi openssl-dev
 # curl works better than wget to get the core.gz and kernel.tar.xz from the net.
 RUN tce-load -wi curl
-# Getting core.gz and kernel.tar.xz
-RUN curl --remote-name http://tinycorelinux.net/15.x/x86/release/distribution_files/core.gz
+# Getting kernel.tar.xz
+ENV KERNEL_VERSION_NAME=linux-$KERNEL_VERSION
+ENV KERNEL_SOURCE_PATH=$HOME_TC/$KERNEL_VERSION_NAME
+ENV KERNEL_TAR_XZ=$KERNEL_VERSION_NAME.tar.xz
 RUN curl --remote-name https://cdn.kernel.org/pub/linux/kernel/v5.x/$KERNEL_TAR_XZ
 RUN tar x -f $KERNEL_TAR_XZ
-# Making the kernel, the modules and installing them
-RUN mkdir $KERNEL_MODULES_INSTALL_PATH
 WORKDIR $KERNEL_SOURCE_PATH
 COPY .config ./.config
 # IMPORTANT! the .config file has to be owned by tc:staff otherwise the make commands
