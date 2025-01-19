@@ -1,9 +1,12 @@
 # To be able to read all the commands outputs as they get executed:
 # sudo docker compose --progress=plain -f docker-compose.edit-config.yml build
-ARG TCL_VERSION=15.x
+ARG KERNEL_BRANCH
+ARG KERNEL_VERSION
+ARG TCL_VERSION
 FROM linichotmailca/tcl-core-x86:$TCL_VERSION-x86 AS final
-# Reminder: TCL_VERSION is not available after the FROM because this is a new build stage.
-ARG KERNEL_VERSION=5.10.233
+ARG KERNEL_BRANCH
+ARG KERNEL_VERSION
+ARG TCL_VERSION
 ENV HOME_TC=/home/tc
 WORKDIR $HOME_TC
 # TCZs required to build the kernel
@@ -21,7 +24,7 @@ RUN tce-load -wi curl
 ENV KERNEL_VERSION_NAME=linux-$KERNEL_VERSION
 ENV KERNEL_SOURCE_PATH=$HOME_TC/$KERNEL_VERSION_NAME
 ENV KERNEL_TAR_XZ=$KERNEL_VERSION_NAME.tar.xz
-RUN curl --remote-name https://cdn.kernel.org/pub/linux/kernel/v5.x/$KERNEL_TAR_XZ
+RUN curl --remote-name https://cdn.kernel.org/pub/linux/kernel/$KERNEL_BRANCH/$KERNEL_TAR_XZ
 RUN tar x -f $KERNEL_TAR_XZ
 WORKDIR $KERNEL_SOURCE_PATH
 COPY .config ./.config

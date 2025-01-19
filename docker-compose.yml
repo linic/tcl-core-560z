@@ -5,7 +5,8 @@ services:
       context: .
       args:
         - ITERATION_NUMBER=1
-        - KERNEL_VERSION=5.10.233
+        - KERNEL_BRANCH=v6.x
+        - KERNEL_VERSION=6.12.10
         - TCL_MAJOR_VERSION_NUMBER=15
         - TCL_VERSION=15.x
       dockerfile: Dockerfile

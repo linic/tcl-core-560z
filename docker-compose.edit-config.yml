@@ -4,7 +4,8 @@ services:
     build:
       context: .
       args:
+        - KERNEL_BRANCH=v6.x
+        - KERNEL_VERSION=6.12.10
         - TCL_VERSION=15.x
-        - KERNEL_VERSION=5.10.233
       dockerfile: Dockerfile.edit-config
 

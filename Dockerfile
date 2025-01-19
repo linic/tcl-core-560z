@@ -2,6 +2,7 @@
 # sudo docker compose --progress=plain -f docker-compose.yml build
 ARG TCL_VERSION
 FROM linichotmailca/tcl-core-x86:$TCL_VERSION-x86 AS final
+ARG KERNEL_BRANCH
 ARG KERNEL_VERSION
 ENV HOME_TC=/home/tc
 WORKDIR $HOME_TC
@@ -23,7 +24,7 @@ RUN curl --remote-name http://tinycorelinux.net/$TCL_VERSION/x86/release/distrib
 ENV KERNEL_VERSION_NAME=linux-$KERNEL_VERSION
 ENV KERNEL_SOURCE_PATH=$HOME_TC/$KERNEL_VERSION_NAME
 ENV KERNEL_TAR_XZ=$KERNEL_VERSION_NAME.tar.xz
-RUN curl --remote-name https://cdn.kernel.org/pub/linux/kernel/v5.x/$KERNEL_TAR_XZ
+RUN curl --remote-name https://cdn.kernel.org/pub/linux/kernel/$KERNEL_BRANCH/$KERNEL_TAR_XZ
 RUN tar x -f $KERNEL_TAR_XZ
 # Making the kernel, the modules and installing them
 WORKDIR $KERNEL_SOURCE_PATH
@@ -65,10 +66,10 @@ RUN sudo rm ./edit-modules.dep.order.sh
 COPY create-kernel.tclocal.sh .
 RUN sudo chown tc:staff create-kernel.tclocal.sh
 RUN chmod +x create-kernel.tclocal.sh
-RUN sudo ./create-kernel.tclocal.sh
+RUN sudo ./create-kernel.tclocal.sh $KERNEL_VERSION-tinycore-560z $CORE_TEMP_PATH
 RUN sudo rm ./create-kernel.tclocal.sh
 # source and build are there by default, but they're not needed
-RUN sudo rm source
+RUN if [ -d "source" ]; then sudo rm source; fi
 RUN sudo rm build
 # Generate the custom core.gz file as explained in 
 # https://wiki.tinycorelinux.net/doku.php?id=wiki:custom_kernel&s[]=custom&s[]=kernel
