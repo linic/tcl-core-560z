@@ -1,11 +1,11 @@
 services:
   main:
-    image: linichotmailca/tcl-core-560z-edit-config:latest
+    image: linichotmailca/tcl-core-560z-edit-config:6.12.11.15.8
     build:
       context: .
       args:
         - KERNEL_BRANCH=v6.x
-        - KERNEL_VERSION=6.12.10
+        - KERNEL_VERSION=6.12.11
         - TCL_VERSION=15.x
       dockerfile: Dockerfile.edit-config
 

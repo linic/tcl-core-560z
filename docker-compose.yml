@@ -1,12 +1,14 @@
 services:
   main:
-    image: linichotmailca/tcl-core-560z:latest
+    image: linichotmailca/tcl-core-560z:6.12.11.15.9
     build:
       context: .
       args:
-        - ITERATION_NUMBER=1
+        - ITERATION_NUMBER=9
         - KERNEL_BRANCH=v6.x
-        - KERNEL_VERSION=6.12.10
+        - KERNEL_SUFFIX=tinycore-560z
+        - KERNEL_VERSION=6.12.11
         - TCL_MAJOR_VERSION_NUMBER=15
         - TCL_VERSION=15.x
       dockerfile: Dockerfile
+

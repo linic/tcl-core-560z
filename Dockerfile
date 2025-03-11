@@ -1,9 +1,21 @@
 # To be able to read all the commands outputs as they get executed:
 # sudo docker compose --progress=plain -f docker-compose.yml build
+ARG ITERATION_NUMBER
+ARG KERNEL_BRANCH
+ARG KERNEL_SUFFIX
+ARG KERNEL_VERSION
+ARG TCL_MAJOR_VERSION_NUMBER
+# You may get this warning:
+# "WARN: InvalidDefaultArgInFrom: Default value for ARG linichotmailca/tcl-core-x86:$TCL_VERSION-x86 results in empty or invalid base image name"
+# You can safely ignore it. The value from the docker-compose.yml loads correctly.
 ARG TCL_VERSION
 FROM linichotmailca/tcl-core-x86:$TCL_VERSION-x86 AS final
+ARG ITERATION_NUMBER
 ARG KERNEL_BRANCH
+ARG KERNEL_SUFFIX
 ARG KERNEL_VERSION
+ARG TCL_MAJOR_VERSION_NUMBER
+ARG TCL_VERSION
 ENV HOME_TC=/home/tc
 WORKDIR $HOME_TC
 # TCZs required to build the kernel
@@ -18,7 +30,6 @@ RUN tce-load -wi openssl-dev
 # curl works better than wget to get the core.gz and kernel.tar.xz from the net.
 RUN tce-load -wi curl
 # Getting core.gz for later
-ARG TCL_VERSION
 RUN curl --remote-name http://tinycorelinux.net/$TCL_VERSION/x86/release/distribution_files/core.gz
 # Getting kernel.tar.xz
 ENV KERNEL_VERSION_NAME=linux-$KERNEL_VERSION
@@ -28,12 +39,15 @@ RUN curl --remote-name https://cdn.kernel.org/pub/linux/kernel/$KERNEL_BRANCH/$K
 RUN tar x -f $KERNEL_TAR_XZ
 # Making the kernel, the modules and installing them
 WORKDIR $KERNEL_SOURCE_PATH
-COPY .config ./.config
 # IMPORTANT! the .config file has to be owned by tc:staff otherwise the make commands
 # don't load it because they don't have the permission and they default to a default
 # config which breaks in a confusing way.
-RUN sudo chown tc:staff .config
+COPY --chown=tc:staff .config ./.config
 RUN make bzImage
+# Overwrite sound driver files with increased logging for debugging
+COPY --chown=tc:staff cs4237b/source/ $KERNEL_SOURCE_PATH/
+WORKDIR $KERNEL_SOURCE_PATH
+# Make the modules
 RUN make modules
 ENV KERNEL_MODULES_INSTALL_PATH=$HOME_TC/modules
 RUN mkdir $KERNEL_MODULES_INSTALL_PATH
@@ -45,45 +59,95 @@ RUN mkdir $CORE_TEMP_PATH
 WORKDIR $CORE_TEMP_PATH
 RUN zcat $HOME_TC/core.gz | sudo cpio -i -H newc -d
 # Removing the official modules since they can't be used with our custom kernel
-RUN sudo rm -rf $CORE_TEMP_PATH/lib/modules/*
-WORKDIR $HOME_TC
+ENV CORE_TEMP_MODULES_PATH=$CORE_TEMP_PATH/lib/modules
+RUN sudo rm -rf $CORE_TEMP_MODULES_PATH
 # Adding our custom built modules which will work with our custom kernel
-RUN sudo cp -r $KERNEL_MODULES_INSTALL_PATH/lib/modules/* $CORE_TEMP_PATH/lib/modules/
-WORKDIR $CORE_TEMP_PATH/lib/modules/$KERNEL_VERSION-tinycore-560z
-# Let's compress the modules with gzip and advdef since it is like that in the official core.gz
-COPY compress_modules.sh . 
-RUN sudo chown tc:staff compress_modules.sh
-RUN chmod +x compress_modules.sh
+RUN sudo cp -rv $KERNEL_MODULES_INSTALL_PATH/lib/modules $CORE_TEMP_MODULES_PATH
+# Let's compress the sound modules with gzip and advdef since it is like that in the official core.gz
+WORKDIR $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX
+COPY --chown=tc:staff --chmod=0755 compress_modules.sh . 
 RUN sudo ./compress_modules.sh
 RUN sudo rm ./compress_modules.sh
 # edit modules.* files since they refer to the old .ko file and not the .ko.gz and won't load otherwise.
-COPY edit-modules.dep.order.sh .
-RUN sudo chown tc:staff edit-modules.dep.order.sh
-RUN chmod +x edit-modules.dep.order.sh
+COPY --chown=tc:staff --chmod=0755 edit-modules.dep.order.sh .
 RUN sudo ./edit-modules.dep.order.sh
 RUN sudo rm ./edit-modules.dep.order.sh
 # create the kernel.tclocal
-COPY create-kernel.tclocal.sh .
-RUN sudo chown tc:staff create-kernel.tclocal.sh
-RUN chmod +x create-kernel.tclocal.sh
-RUN sudo ./create-kernel.tclocal.sh $KERNEL_VERSION-tinycore-560z $CORE_TEMP_PATH
+COPY --chown=tc:staff --chmod=0755 create-kernel.tclocal.sh .
+RUN sudo ./create-kernel.tclocal.sh $KERNEL_VERSION-$KERNEL_SUFFIX $CORE_TEMP_PATH
 RUN sudo rm ./create-kernel.tclocal.sh
 # source and build are there by default, but they're not needed
 RUN if [ -d "source" ]; then sudo rm source; fi
 RUN sudo rm build
+
+# Extracting the sound files to create the equivalent alsa-modules-KERNEL.tcz file.
+WORKDIR $HOME_TC
+ENV ALSA_MODULES_TCZ_INSTALL_PATH=alsa-modules-$KERNEL_VERSION-$KERNEL_SUFFIX
+ENV ALSA_MODULES_TCZ=$ALSA_MODULES_TCZ_INSTALL_PATH.tcz
+ENV SOUND_INSTALL_PATH=$ALSA_MODULES_TCZ_INSTALL_PATH/usr/local/lib/modules/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/sound
+RUN mkdir -p $SOUND_INSTALL_PATH
+# Move the sound modules from core since we'll have them in the alsa-modules-KERNEL.tcz
+RUN sudo mv $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/sound $SOUND_INSTALL_PATH
+RUN mksquashfs $ALSA_MODULES_TCZ_INSTALL_PATH $ALSA_MODULES_TCZ
+RUN unsquashfs -l $ALSA_MODULES_TCZ
+
+# Extracting the net files to create net-modules-KERNEL.tcz file.
+ENV NET_MODULES_TCZ_INSTALL_PATH=net-modules-$KERNEL_VERSION-$KERNEL_SUFFIX
+ENV NET_MODULES_TCZ=$NET_MODULES_TCZ_INSTALL_PATH.tcz
+ENV NET_INSTALL_PATH=$NET_MODULES_TCZ_INSTALL_PATH/usr/local/lib/modules/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/net
+ENV DRIVERS_NET_INSTALL_PATH=$NET_MODULES_TCZ_INSTALL_PATH/usr/local/lib/modules/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/net
+RUN mkdir -p $NET_INSTALL_PATH
+RUN mkdir -p $DRIVERS_NET_INSTALL_PATH
+# Move the net and drivers/net modules from core since we'll have them in the net-modules-KERNEL.tcz
+RUN sudo mv $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/net $NET_INSTALL_PATH
+RUN sudo mv $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/net $DRIVERS_NET_INSTALL_PATH
+RUN mksquashfs $NET_MODULES_TCZ_INSTALL_PATH $NET_MODULES_TCZ
+RUN unsquashfs -l $NET_MODULES_TCZ
+
+# Extracting the drivers/usb files to create usb-modules-KERNEL.tcz file.
+ENV USB_MODULES_TCZ_INSTALL_PATH=usb-modules-$KERNEL_VERSION-$KERNEL_SUFFIX
+ENV USB_MODULES_TCZ=$USB_MODULES_TCZ_INSTALL_PATH.tcz
+ENV USB_INSTALL_PATH=$USB_MODULES_TCZ_INSTALL_PATH/usr/local/lib/modules/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/usb
+RUN mkdir -p $USB_INSTALL_PATH
+# Move the kernel/drivers/usb modules from core since we'll have them in the usb-modules-KERNEL.tcz
+RUN sudo mv $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/usb $USB_INSTALL_PATH
+RUN mksquashfs $USB_MODULES_TCZ_INSTALL_PATH $USB_MODULES_TCZ
+RUN unsquashfs -l $USB_MODULES_TCZ
+
+# Extracting the drivers/pcmcia files to create pcmcia-modules-KERNEL.tcz file.
+ENV PCMCIA_MODULES_TCZ_INSTALL_PATH=pcmcia-modules-$KERNEL_VERSION-$KERNEL_SUFFIX
+ENV PCMCIA_MODULES_TCZ=$PCMCIA_MODULES_TCZ_INSTALL_PATH.tcz
+ENV PCMCIA_INSTALL_PATH=$PCMCIA_MODULES_TCZ_INSTALL_PATH/usr/local/lib/modules/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/pcmcia
+RUN mkdir -p $PCMCIA_INSTALL_PATH
+# Move the kernel/drivers/pcmcia modules from core since we'll have them in the pcmcia-modules-KERNEL.tcz
+RUN sudo mv $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/pcmcia $PCMCIA_INSTALL_PATH
+RUN mksquashfs $PCMCIA_MODULES_TCZ_INSTALL_PATH $PCMCIA_MODULES_TCZ
+RUN unsquashfs -l $PCMCIA_MODULES_TCZ
+
+# Extracting the drivers/parport files to create parport-modules-KERNEL.tcz file.
+ENV PARPORT_MODULES_TCZ_INSTALL_PATH=parport-modules-$KERNEL_VERSION-$KERNEL_SUFFIX
+ENV PARPORT_MODULES_TCZ=$PARPORT_MODULES_TCZ_INSTALL_PATH.tcz
+ENV PARPORT_INSTALL_PATH=$PARPORT_MODULES_TCZ_INSTALL_PATH/usr/local/lib/modules/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/parport
+RUN mkdir -p $PARPORT_INSTALL_PATH
+# Move the kernel/drivers/parport modules from core since we'll have them in the parport-modules-KERNEL.tcz
+RUN sudo mv $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/parport $PARPORT_INSTALL_PATH
+RUN mksquashfs $PARPORT_MODULES_TCZ_INSTALL_PATH $PARPORT_MODULES_TCZ
+RUN unsquashfs -l $PARPORT_MODULES_TCZ
+
 # Generate the custom core.gz file as explained in 
 # https://wiki.tinycorelinux.net/doku.php?id=wiki:custom_kernel&s[]=custom&s[]=kernel
 WORKDIR $CORE_TEMP_PATH
-ARG TCL_MAJOR_VERSION_NUMBER
-ARG ITERATION_NUMBER
 RUN  sudo find | sudo cpio -o -H newc | gzip -9 > $HOME_TC/core-$KERNEL_VERSION.$TCL_MAJOR_VERSION_NUMBER.$ITERATION_NUMBER.gz
 # Copying the bzImage which is the kernel
 WORKDIR $HOME_TC
 RUN cp $KERNEL_SOURCE_PATH/arch/x86/boot/bzImage $HOME_TC/bzImage-$KERNEL_VERSION.$TCL_MAJOR_VERSION_NUMBER.$ITERATION_NUMBER
 RUN ls -larth $HOME_TC/core-$KERNEL_VERSION.$TCL_MAJOR_VERSION_NUMBER.$ITERATION_NUMBER.gz
 RUN ls -larth $HOME_TC/bzImage-$KERNEL_VERSION.$TCL_MAJOR_VERSION_NUMBER.$ITERATION_NUMBER
-# Then if you docker compose build you'll be able to docker exec -it into it and move around or
-# docker cp files out of it.
+RUN ls -larth $HOME_TC/$NET_MODULES_TCZ
+RUN ls -larth $HOME_TC/$ALSA_MODULES_TCZ
+RUN ls -larth $HOME_TC/$USB_MODULES_TCZ
+RUN ls -larth $HOME_TC/$PCMCIA_MODULES_TCZ
+RUN ls -larth $HOME_TC/$PARPORT_MODULES_TCZ
 COPY echo_sleep /
 ENTRYPOINT ["/bin/sh", "/echo_sleep"]
 
