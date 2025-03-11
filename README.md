@@ -11,8 +11,8 @@ If you build your own kernel with the method described below, starting with kern
 `NAME-modules-KERNEL.tcz` files are generated.
 
 If you are on a quest to get sound working on the 560z, I modified the cs4236 driver and put the result in the
-[6.12.11](./6.12.11/) folder. This gets bundled in the `alsa-modules-6.12.11-tinycore-560z.tcz`. Tinycore 14.0 and
-my custom builds before 6.12.11.15.8 would give me `cs4236+ chip detected, but control port 0xffffffff is not valid`.
+[cs4237b](./cs4237b/) folder. This gets bundled in the `alsa-modules-6.12.11-tinycore-560z.tcz`. Tinycore 14.0 and
+my custom builds before 6.12.11.15.9 would give me `cs4236+ chip detected, but control port 0xffffffff is not valid`.
 It looks like a working version of a driver for the CS4237B specifically on the 560z hasn't existed for a
 long time. All the workarounds I found on the net didn't work for me. More details in another section below.
 
