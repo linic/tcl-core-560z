@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 ###################################################################
 # Copyright (C) 2025  linic@hotmail.ca Subject to GPL-3.0 license.#
@@ -12,13 +12,23 @@
 # in a release/$1.$2 folder (for example release/6.12.11.15.9).
 ##################################################################
 
-BUILD_VERSION_ERROR_MESSAGE="Please enter a valid build version as the first parameter. For example 6.12.11.15.9."
-if [ ! $# -eq 1 ]; then
+BUILD_VERSION_ERROR_MESSAGE="Please enter a build version, TCL_RELEASE_TYPE and core.gz or rootfs.gz. For example: build-all.sh 6.12.11.15.9 release core.gz"
+if [ ! $# -eq 3 ]; then
   echo $BUILD_VERSION_ERROR_MESSAGE
   exit 6
 fi
 # Save the first parameter as the build version.
 BUILD_VERSION=$1
+TCL_RELEASE_TYPE=$2
+if [ $TCL_RELEASE_TYPE != "release" && $TCL_RELEASE_TYPE!= "release_candidates" ]; then
+  echo "The 2nd parameter should be either 'release' or 'release_candidates'."
+  exit 12
+fi
+CORE_GZ=$3
+if [ $CORE_GZ != "core.gz" && $CORE_GZ != "rootfs.gz" ]; then
+  echo "The 3rd parameter should be either 'core.gz' or 'rootfs.gz'."
+  exit 13
+fi
 # IFS is by default space, tab and newline. When 6.12.11.15.9 is entered, it is 1 parameter and in the first positional parameter.
 # Set the Internal Field Separator to "." that way each digit of 6.12.11.15.9 will be separated in different variables.
 OLD_IFS=$IFS
@@ -146,7 +156,7 @@ if [ ! cs4237b/include/sound/wss.h ]; then
   exit 20
 fi
 
-if [ ! docker-compose.yml || grep -q "$BUILD_VERSION" docker-compose.yml ]; then
+if [ ! -f docker-compose.yml ] || ! grep -q "$BUILD_VERSION" docker-compose.yml; then
   echo "Did not find $BUILD_VERSION in docker-compose.yml. Rewriting docker-compose.yml."
   echo "services:\n"\
     " main:\n"\
@@ -154,11 +164,13 @@ if [ ! docker-compose.yml || grep -q "$BUILD_VERSION" docker-compose.yml ]; then
     "   build:\n"\
     "     context: .\n"\
     "     args:\n"\
+    "       - CORE_GZ=$CORE_GZ\n"\
     "       - ITERATION_NUMBER=$N5\n"\
     "       - KERNEL_BRANCH=v$N1.x\n"\
     "       - KERNEL_SUFFIX=tinycore-560z\n"\
     "       - KERNEL_VERSION=$KERNEL_VERSION\n"\
     "       - TCL_MAJOR_VERSION_NUMBER=$N4\n"\
+    "       - TCL_RELEASE_TYPE=$TCL_RELEASE_TYPE\n"\
     "       - TCL_VERSION=$N4.x\n"\
     "     dockerfile: Dockerfile\n" > docker-compose.yml
 fi

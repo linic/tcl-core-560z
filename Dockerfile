@@ -4,7 +4,9 @@ ARG ITERATION_NUMBER
 ARG KERNEL_BRANCH
 ARG KERNEL_SUFFIX
 ARG KERNEL_VERSION
+ARG CORE_GZ
 ARG TCL_MAJOR_VERSION_NUMBER
+ARG TCL_RELEASE_TYPE
 # You may get this warning:
 # "WARN: InvalidDefaultArgInFrom: Default value for ARG linichotmailca/tcl-core-x86:$TCL_VERSION-x86 results in empty or invalid base image name"
 # You can safely ignore it. The value from the docker-compose.yml loads correctly.
@@ -14,7 +16,9 @@ ARG ITERATION_NUMBER
 ARG KERNEL_BRANCH
 ARG KERNEL_SUFFIX
 ARG KERNEL_VERSION
+ARG CORE_GZ
 ARG TCL_MAJOR_VERSION_NUMBER
+ARG TCL_RELEASE_TYPE
 ARG TCL_VERSION
 ENV HOME_TC=/home/tc
 WORKDIR $HOME_TC
@@ -27,11 +31,30 @@ RUN tce-load -wi bc
 RUN tce-load -wi advcomp
 # openssl-dev is required when building the kernel
 RUN tce-load -wi openssl-dev
+
+# There are 2 ways to replace the modules in core.gz:
+# 1. get core.gz, unpack it and remove the modules since it is rootfs.gz + modules.gz
+# 2. get rootfs.gz directly
+# Note: for 16.0beta1, core.gz doesn't exist yet. So rootfs.gz must be used.
+# For release versions, core.gz exists and can be used. The code below works with both.
 # curl works better than wget to get the core.gz and kernel.tar.xz from the net.
 RUN tce-load -wi curl
 # Getting core.gz for later
-RUN curl --remote-name http://tinycorelinux.net/$TCL_VERSION/x86/release/distribution_files/core.gz
+RUN curl --remote-name http://tinycorelinux.net/$TCL_VERSION/x86/$TCL_RELEASE_TYPE/distribution_files/$CORE_GZ
+# Getting, editing and unpacking the official core.gz as explained in
+# https://wiki.tinycorelinux.net/doku.php?id=wiki:custom_kernel&s[]=custom&s[]=kernel
+ENV CORE_TEMP_PATH=$HOME_TC/coretmp
+RUN mkdir $CORE_TEMP_PATH
+WORKDIR $CORE_TEMP_PATH
+RUN zcat $HOME_TC/$CORE_GZ | sudo cpio -i -H newc -d
+# Removing the official modules since they can't be used with our custom kernel
+ENV CORE_TEMP_MODULES_PATH=$CORE_TEMP_PATH/lib/modules
+RUN if [ -f $CORE_TEMP_MODULES_PATH ]; then sudo rm -rf $CORE_TEMP_MODULES_PATH; fi
+# For visual feedback of what has been extracted.
+RUN ls $CORE_TEMP_PATH
+
 # Getting kernel.tar.xz
+WORKDIR $HOME_TC
 ENV KERNEL_VERSION_NAME=linux-$KERNEL_VERSION
 ENV KERNEL_SOURCE_PATH=$HOME_TC/$KERNEL_VERSION_NAME
 ENV KERNEL_TAR_XZ=$KERNEL_VERSION_NAME.tar.xz
@@ -47,22 +70,16 @@ RUN make bzImage
 # Overwrite sound driver files with increased logging for debugging
 COPY --chown=tc:staff cs4237b/source/ $KERNEL_SOURCE_PATH/
 WORKDIR $KERNEL_SOURCE_PATH
+
 # Make the modules
 RUN make modules
 ENV KERNEL_MODULES_INSTALL_PATH=$HOME_TC/modules
 RUN mkdir $KERNEL_MODULES_INSTALL_PATH
 RUN make INSTALL_MOD_PATH=$KERNEL_MODULES_INSTALL_PATH modules_install
-# Getting, editing and unpacking the official core.gz as explained in
+# Continuing, editing and unpacking the official core.gz as explained in
 # https://wiki.tinycorelinux.net/doku.php?id=wiki:custom_kernel&s[]=custom&s[]=kernel
-ENV CORE_TEMP_PATH=$HOME_TC/coretmp
-RUN mkdir $CORE_TEMP_PATH
-WORKDIR $CORE_TEMP_PATH
-RUN zcat $HOME_TC/core.gz | sudo cpio -i -H newc -d
-# Removing the official modules since they can't be used with our custom kernel
-ENV CORE_TEMP_MODULES_PATH=$CORE_TEMP_PATH/lib/modules
-RUN sudo rm -rf $CORE_TEMP_MODULES_PATH
 # Adding our custom built modules which will work with our custom kernel
-RUN sudo cp -rv $KERNEL_MODULES_INSTALL_PATH/lib/modules $CORE_TEMP_MODULES_PATH
+RUN sudo cp -rv $KERNEL_MODULES_INSTALL_PATH/lib/modules/$KERNEL_VERSION-$KERNEL_SUFFIX $CORE_TEMP_MODULES_PATH/
 # Let's compress the sound modules with gzip and advdef since it is like that in the official core.gz
 WORKDIR $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX
 COPY --chown=tc:staff --chmod=0755 compress_modules.sh . 
@@ -72,6 +89,7 @@ RUN sudo rm ./compress_modules.sh
 COPY --chown=tc:staff --chmod=0755 edit-modules.dep.order.sh .
 RUN sudo ./edit-modules.dep.order.sh
 RUN sudo rm ./edit-modules.dep.order.sh
+
 # create the kernel.tclocal
 COPY --chown=tc:staff --chmod=0755 create-kernel.tclocal.sh .
 RUN sudo ./create-kernel.tclocal.sh $KERNEL_VERSION-$KERNEL_SUFFIX $CORE_TEMP_PATH

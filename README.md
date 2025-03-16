@@ -30,8 +30,10 @@ original-modules-KERNEL.tcz
 ## Summary
 I originally based my custom kernel on the `.config` of
 [TCL 12.0](http://tinycorelinux.net/12.x/x86/release/src/kernel/config-5.10.3-tinycore).
-I'm now at 6.12.11. I used `make oldconfig` to move from 5.10.3 to 5.10.232. Then, I moved to 6.12.11 eventually.
+I'm now at 6.13.7.16.1. I used `make oldconfig` to move from 5.10.3 to 5.10.232. Then, I moved to 6.12.11 and now to 6.13.7.
 I also used `make menuconfig` to unselect many features and change the processor configuration to Pentium II.
+The jump from 6.12.11 to 6.13.7 was just a `make oldconfig` and I had to answer a couple of questions from the
+oldconfig prompts.
 
 ## Why?
 My Thinkpad 560z 64 MB of RAM. As far as my experience goes, TCL Core 14.0 is the last version of TCL which can be
@@ -46,13 +48,12 @@ not enough memory without the swap, `init` fails with codes such as
 [init (error -26) with Core 15.0](https://forum.tinycorelinux.net/index.php/topic,27458.0.html) (and I also
 got error -2 while testing various custom kernels and modules.
 
-## How to build?
-To build the custom linux kernel and `core.gz`: 
-`sudo docker compose --progress=plain -f docker-compose.yml build`
-
-To copy them out of a running container: 
-`sudo docker compose -f docker-compose.yml up` and in another terminal 
-run the [build-all.sh](./tools/build-all.sh) script.
+## How to build and copy the files out of the images?
+To build the custom linux kernel and `core.gz` just call `make`.
+This will start build the image to modify the `.config` and you'll be able to interact with the container
+to upgrade the `.config` file when trying to build with a more recent kernel. Once the edit step is complete,
+the build step will start automatically and will build the kernel and `core.gz. This works also with beta
+versions of tinycore since it uses `rootfs.gz`. The artifacts will be in a `release/x.y.z.a.b` directory.
 
 ## How to use the custom files on the 560z?
 Get those files on the 560z in your preferred way. The scripts in [tools](./tools) could be useful.
@@ -87,18 +88,19 @@ I also simplified and deleted code which would not run because the `chip->hardwa
 ## tools
 See the [tools](./tools/) for scripts which automate many steps
 to get and install the files generated in the docker containers.
-I'm using this script to correctly load the modules, have sound and test sound:
-```
-#!/bin/sh
-# Required for alsamixer to work.
-tce-load -i alsa-config
-# alsa depends on alsa-modules-KERNEL.tcz and will load them
-tce-load -i alsa
-tce-load -i mpg123
-sudo cp /home/tc/configuration/asound.state /usr/local/etc/alsa/
-sudo alsactl restore CS4237B
-```
-`/home/tc/configuration/asound.state` won't exist the first time.
+### desktop.sh
+[tools/desktop.sh](./tools/desktop.sh) downloads the extensions required to start the desktop and starts it.
+### ftp-get-kernel.sh
+[tools/ftp-get-kernel.sh](./tools/ftp-get-kernel.sh) downloads the custom kernel files from an FTP server on the 560z.
+It also places the files in the right directories on the 560z and modifies the `extlinux.conf` to have a new selectable
+entry after reboot.
+Note that you need to get your own FTP server if you want to use this.
+### get-sound-tczs.sh
+[tools/get-sound-tczs.sh](./tools/get-sound-tczs.sh) gets the extensions required by [tools/init-sound.sh](./tools/init-sound.sh)
+### init-sound.sh
+I'm using [tools/init-sound.sh](./tools/init-sound.sh) to correctly load the modules, restore
+the card's configuration and have `mpg123` available to play an .mp3 file to test sound.
+Note that `/home/tc/configuration/asound.state` won't exist the first time.
 You'll have to run manually:
 ```
 tce-load -i alsa-config
@@ -116,4 +118,10 @@ have to do that maybe because some registers of the CS4237B are
 set to the go to the wrong values...? Also unmute the sound
 using the Fn and volume keys of your keyboard. Make sure you
 hear the "beep" the volume up keybaoard key produces.
+### net.sh
+Loads the modules to get the Realtek 8152 USB ethernet adapter working.
+### ip.sh
+Set the ip address and default route.
+### prepare-upgrade.sh
+Backs up the extensions in a new directory to prepare for an upgrade.
 
