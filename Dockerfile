@@ -49,7 +49,7 @@ WORKDIR $CORE_TEMP_PATH
 RUN zcat $HOME_TC/$CORE_GZ | sudo cpio -i -H newc -d
 # Removing the official modules since they can't be used with our custom kernel
 ENV CORE_TEMP_MODULES_PATH=$CORE_TEMP_PATH/lib/modules
-RUN if [ -f $CORE_TEMP_MODULES_PATH ]; then sudo rm -rf $CORE_TEMP_MODULES_PATH; fi
+RUN if [ -d $CORE_TEMP_MODULES_PATH ]; then sudo rm -rf $CORE_TEMP_MODULES_PATH; fi
 # For visual feedback of what has been extracted.
 RUN ls $CORE_TEMP_PATH
 

@@ -7,17 +7,20 @@
 # 2. get rootfs.gz directly
 # Note: for 16.0beta1, core.gz doesn't exist yet. So rootfs.gz must be used.
 # See the Dockerfile for more details about how the modules are replaced.
-CORE_GZ=rootfs.gz
+CORE_GZ=core.gz
 
-ITERATION=6
-LINUX_KERNEL_VERSION=6.13.7
-TCL_MAJOR_VERSION=16
-TCL_RELEASE_TYPE=release_candidates
+ITERATION=1
+LINUX_KERNEL_VERSION=6.6.8
+TCL_MAJOR_VERSION=15
+TCL_RELEASE_TYPE=release
 
 all: edit build publish
 
 edit:
 	tools/edit-config.sh ${LINUX_KERNEL_VERSION}.${TCL_MAJOR_VERSION}.${ITERATION}
+
+trim:
+	tools/trim.sh ${LINUX_KERNEL_VERSION}.${TCL_MAJOR_VERSION}.${ITERATION} ${TCL_RELEASE_TYPE} ${CORE_GZ}
 
 build:
 	tools/build-all.sh ${LINUX_KERNEL_VERSION}.${TCL_MAJOR_VERSION}.${ITERATION} ${TCL_RELEASE_TYPE} ${CORE_GZ}

@@ -1,0 +1,18 @@
+services:
+  trim:
+    build:
+      context: .
+      args:
+        - CORE_GZ=core.gz
+        - ITERATION_NUMBER=1
+        - KERNEL_BRANCH=v6.x
+        - KERNEL_SUFFIX=tinycore-560z
+        - KERNEL_VERSION=6.6.8
+        - TCL_MAJOR_VERSION_NUMBER=15
+        - TCL_RELEASE_TYPE=release
+        - TCL_VERSION=15.x
+      tags:
+        - linichotmailca/tcl-core-560z-trim:6.6.8.15.1
+        - linichotmailca/tcl-core-560z-trim:latest
+      dockerfile: Dockerfile.trim
+

@@ -1,0 +1,50 @@
+# Trim an official tinycore linux. 
+ARG ITERATION_NUMBER
+ARG KERNEL_BRANCH
+ARG KERNEL_SUFFIX
+ARG KERNEL_VERSION
+ARG CORE_GZ
+ARG TCL_MAJOR_VERSION_NUMBER
+ARG TCL_RELEASE_TYPE
+# You may get this warning:
+# "WARN: InvalidDefaultArgInFrom: Default value for ARG linichotmailca/tcl-core-x86:$TCL_VERSION-x86 results in empty or invalid base image name"
+# You can safely ignore it. The value from the docker-compose.yml loads correctly.
+ARG TCL_VERSION
+FROM linichotmailca/tcl-core-x86:$TCL_VERSION-x86 AS final
+ARG ITERATION_NUMBER
+ARG KERNEL_BRANCH
+ARG KERNEL_SUFFIX
+ARG KERNEL_VERSION
+ARG CORE_GZ
+ARG TCL_MAJOR_VERSION_NUMBER
+ARG TCL_RELEASE_TYPE
+ARG TCL_VERSION
+ENV HOME_TC=/home/tc
+WORKDIR $HOME_TC
+
+# Note core.gz onlu exists for release versions as far as I have seen for now.
+RUN echo http://tinycorelinux.net/$TCL_VERSION/x86/$TCL_RELEASE_TYPE/distribution_files/$CORE_GZ
+RUN wget http://tinycorelinux.net/$TCL_VERSION/x86/$TCL_RELEASE_TYPE/distribution_files/$CORE_GZ
+# Getting, editing and unpacking the official core.gz as explained in
+# https://wiki.tinycorelinux.net/doku.php?id=wiki:custom_kernel&s[]=custom&s[]=kernel
+ENV CORE_TEMP_PATH=$HOME_TC/coretmp
+RUN mkdir $CORE_TEMP_PATH
+WORKDIR $CORE_TEMP_PATH
+RUN zcat $HOME_TC/$CORE_GZ | sudo cpio -i -H newc -d
+# Removing the official modules since they can't be used with our custom kernel
+ENV CORE_TEMP_MODULES_PATH=$CORE_TEMP_PATH/lib/modules
+COPY --chown=tc:staff tools/trim-modules.sh .
+RUN ./trim-modules.sh
+# For visual feedback of what has been extracted.
+RUN ls $CORE_TEMP_PATH
+
+# Generate the custom core.gz file as explained in 
+# https://wiki.tinycorelinux.net/doku.php?id=wiki:custom_kernel&s[]=custom&s[]=kernel
+WORKDIR $CORE_TEMP_PATH
+RUN  sudo find | sudo cpio -o -H newc | gzip -9 > $HOME_TC/core-$KERNEL_VERSION.$TCL_MAJOR_VERSION_NUMBER.$ITERATION_NUMBER-trim.gz
+# Copying the bzImage which is the kernel
+WORKDIR $HOME_TC
+RUN ls -larth $HOME_TC/core-$KERNEL_VERSION.$TCL_MAJOR_VERSION_NUMBER.$ITERATION_NUMBER-trim.gz
+COPY echo_sleep /
+ENTRYPOINT ["/bin/sh", "/echo_sleep"]
+

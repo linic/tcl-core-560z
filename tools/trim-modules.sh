@@ -1,0 +1,89 @@
+#!/bin/sh
+
+# Modules to trim.
+TRIM="
+  iommu
+  gpio
+  hid
+  misc
+  mmc
+  memstick
+  phy
+  pinctrl
+  regulator
+  thunderbolt
+  virtio
+  video
+  platform/chrome
+  platform/surface
+  platform/x86
+  virt
+  usb/misc
+  thermal
+  powercap
+  power
+  net/ethernet/3com
+  net/ethernet/8390
+  net/ethernet/adaptec
+  net/ethernet/agere
+  net/ethernet/alacritech
+  net/ethernet/alteon
+  net/ethernet/altera
+  net/ethernet/amazon
+  net/ethernet/amd
+  net/ethernet/aquantia
+  net/ethernet/atheros
+  net/ethernet/broadcom
+  net/ethernet/brocade
+  net/ethernet/cadence
+  net/ethernet/chelsio
+  net/ethernet/cirrus
+  net/ethernet/cisco
+  net/ethernet/dec
+  net/ethernet/dlink
+  net/ethernet/emulex
+  net/ethernet/fujitsu
+  net/ethernet/fungible
+  net/ethernet/google
+  net/ethernet/huawei
+  net/ethernet/intel
+  net/ethernet/marvell
+  net/ethernet/mellanox
+  net/ethernet/micrel
+  net/ethernet/microchip
+  net/ethernet/myricom
+  net/ethernet/natsemi
+  net/ethernet/neterion
+  net/ethernet/netronome
+  net/ethernet/ni
+  net/ethernet/nvidia
+  net/ethernet/oki-semi
+  net/ethernet/packetengines
+  net/ethernet/qlogic
+  net/ethernet/qualcomm
+  net/ethernet/rdc
+  net/ethernet/samsunc
+  net/ethernet/sfc
+  net/ethernet/sis
+  net/ethernet/smsc
+  net/ethernet/stmicro
+  net/ethernet/sun
+  net/ethernet/synopsis
+  net/ethernet/tehuti
+  net/ethernet/ti
+  net/ethernet/via
+  net/ethernet/wangxun
+  net/ethernet/wiznet
+  net/hyperv
+  net/phy
+"
+
+BASE_PATH="${CORE_TEMP_MODULES_PATH}/${KERNEL_VERSION}-tinycore/kernel/drivers"
+
+for dir in $TRIM; do
+  full_path="${BASE_PATH}/${dir}"
+  if [ -d "$full_path" ]; then
+    sudo rm -rf "$full_path"
+  fi
+done
+
