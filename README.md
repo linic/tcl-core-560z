@@ -8,7 +8,8 @@ This will get you a version of tinycore linux which will work with the official
 `NAME-modules-KERNEL.tcz` files like `alsa-modules-KERNEL.tcz`.
 
 If you build your own kernel with the method described below, starting with kernel 6.12.11, some
-`NAME-modules-KERNEL.tcz` files are generated.
+`NAME-modules-KERNEL.tcz` files are generated. Starting with 6.13.7.16.6, ipv6-netfilter and wireless .tcz containing
+modules are generated.
 
 If you are on a quest to get sound working on the 560z, I modified the cs4236 driver and put the result in the
 [cs4237b](./cs4237b/) folder. This gets bundled in the `alsa-modules-6.12.11-tinycore-560z.tcz`. Tinycore 14.0 and
@@ -18,19 +19,22 @@ long time. All the workarounds I found on the net didn't work for me. More detai
 
 ### Which `NAME-modules-KERNEL.tcz` files are generated?
 #### Replacement for `alsa-modules-KERNEL.tcz` referred to by [`alsa.tcz.dep`](http://tinycorelinux.net/15.x/x86/tcz/alsa.tcz.dep)
-alsa-modules-6.12.11-tinycore-560z.tcz
+- alsa-modules-6.13.7-tinycore-560z.tcz
+- ipv6-netfilter-6.13.7-tinycore-560z.tcz
+- wireless-6.13.7-tinycore-560z.tcz
 #### Additional custom `NAME-modules-KERNEL.tcz`
-net-modules-6.12.11-tinycore-560z.tcz
-parport-modules-6.12.11-tinycore-560z.tcz
-pcmcia-modules-6.12.11-tinycore-560z.tcz
-usb-modules-6.12.11-tinycore-560z.tcz
+- net-modules-6.13.7-tinycore-560z.tcz
+- parport-modules-6.13.7-tinycore-560z.tcz
+- pcmcia-modules-6.13.7-tinycore-560z.tcz
+- usb-modules-6.13.7-tinycore-560z.tcz
 #### No replacement for
-original-modules-KERNEL.tcz
+- original-modules-KERNEL.tcz
+- other KERNEL.tcz not listed here
 
 ## Summary
 I originally based my custom kernel on the `.config` of
 [TCL 12.0](http://tinycorelinux.net/12.x/x86/release/src/kernel/config-5.10.3-tinycore).
-I'm now at 6.13.7.16.1. I used `make oldconfig` to move from 5.10.3 to 5.10.232. Then, I moved to 6.12.11 and now to 6.13.7.
+I'm now at 6.13.7.16.6. I used `make oldconfig` to move from 5.10.3 to 5.10.232. Then, I moved to 6.12.11 and now to 6.13.7.
 I also used `make menuconfig` to unselect many features and change the processor configuration to Pentium II.
 The jump from 6.12.11 to 6.13.7 was just a `make oldconfig` and I had to answer a couple of questions from the
 oldconfig prompts.
@@ -81,7 +85,7 @@ wasn't there. I tried a bunch of things to make it appear, but it never did. In 
 still disable the quick boot because I run with it disabled and with my modifications
 to the cs4236 driver sound does end up working.
 
-I remove `cport` and `cimage` from the snd cs4236 driver. See files here [6.12.11](./6.12.11/).
+I remove `cport` and `cimage` from the snd cs4236 driver. See files here [cs4237b](./cs4237b/).
 I also simplified and deleted code which would not run because the `chip->hardware` is
 `WSS_HW_CS4237B`. I clarified many variables and methods and added comments.
 
@@ -122,6 +126,9 @@ hear the "beep" the volume up keybaoard key produces.
 Loads the modules to get the Realtek 8152 USB ethernet adapter working.
 ### ip.sh
 Set the ip address and default route.
+#### IPv6
+IPv6 also work starting with 6.13.7.16.6. `tce-load -i ipv6-netfilter-6.13.7-tinycore-560z` and then copy the
+[tools/ip.sh](./tools/ip.sh) and edit it to set IPv6 addresses. I was able to ping a computer on my LAN.
 ### prepare-upgrade.sh
 Backs up the extensions in a new directory to prepare for an upgrade.
 
