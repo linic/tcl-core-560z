@@ -19,13 +19,22 @@ if [ ! $# -eq 1 ]; then
   exit 1
 fi
 
+if [ ! /home/tc/configuration/sda-tcz-files ]; then
+  echo "Please create the /home/tc/configuration/sda-tcz-files "\
+    "file and add the 'sdaX' (replace X with a number) where the "\
+    ".tcz files are."
+  exit 2
+fi
+
+export sda_tcz_files=$(cat /home/tc/configuration/sda-tcz-files)
+
 BACKUP_DIRECTORY=$1
 
 mkdir -p $BACKUP_DIRECTORY
-mv -v /mnt/sda3/tce/optional/* $BACKUP_DIRECTORY
+mv -v /mnt/$sda_tcz_files/tce/optional/* $BACKUP_DIRECTORY
 
 # I found that these can often be reused between TCL versions.
 # I'm using the one from TCL 14.x successfully with TCL 15.x and 16.x
-cp $BACKUP_DIRECTORY/mylocale.tcz* /mnt/sda3/tce/optional/
-cp $BACKUP_DIRECTORY/kmaps.tcz* /mnt/sda3/tce/optional/
+cp $BACKUP_DIRECTORY/mylocale.tcz* /mnt/$sda_tcz_files/tce/optional/
+cp $BACKUP_DIRECTORY/kmaps.tcz* /mnt/$sda_tcz_files/tce/optional/
 

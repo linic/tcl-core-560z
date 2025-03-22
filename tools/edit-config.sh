@@ -99,6 +99,8 @@ sudo docker compose --progress=plain -f docker-compose.edit-config.yml up --deta
 
 sudo docker exec -it tcl-core-560z-main-1 make oldconfig
 
+sudo docker exec -it tcl-core-560z-main-1 make menuconfig
+
 HOME_TC=/home/tc
 KERNEL_VERSION_NAME=linux-$KERNEL_VERSION
 KERNEL_SOURCE_PATH=$HOME_TC/$KERNEL_VERSION_NAME

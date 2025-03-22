@@ -160,7 +160,6 @@ if [ ! -f docker-compose.yml ] || ! grep -q "$BUILD_VERSION" docker-compose.yml;
   echo "Did not find $BUILD_VERSION in docker-compose.yml. Rewriting docker-compose.yml."
   echo "services:\n"\
     " main:\n"\
-    "   image: linichotmailca/tcl-core-560z:$BUILD_VERSION\n"\
     "   build:\n"\
     "     context: .\n"\
     "     args:\n"\
@@ -172,7 +171,10 @@ if [ ! -f docker-compose.yml ] || ! grep -q "$BUILD_VERSION" docker-compose.yml;
     "       - TCL_MAJOR_VERSION_NUMBER=$N4\n"\
     "       - TCL_RELEASE_TYPE=$TCL_RELEASE_TYPE\n"\
     "       - TCL_VERSION=$N4.x\n"\
-    "     dockerfile: Dockerfile\n" > docker-compose.yml
+    "     dockerfile: Dockerfile\n"\
+    "     tags:\n"\
+    "       - linichotmailca/tcl-core-560z:$BUILD_VERSION\n"\
+    "       - linichotmailca/tcl-core-560z:latest\n" > docker-compose.yml
 fi
 
 echo "Requirements are met. Building and getting..."
@@ -189,34 +191,44 @@ sudo docker compose --progress=plain -f docker-compose.yml build
 sudo docker compose --progress=plain -f docker-compose.yml up --detach
 
 mkdir -p ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/
+cd ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/alsa-modules-$KERNEL_VERSION-tinycore-560z.tcz ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/
-md5sum ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/alsa-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/alsa-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
-cat ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/alsa-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:/home/tc/alsa-modules-$KERNEL_VERSION-tinycore-560z.tcz ./
+md5sum ./alsa-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./alsa-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+cat ./alsa-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/net-modules-$KERNEL_VERSION-tinycore-560z.tcz ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/
-md5sum ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/net-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/net-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
-cat ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/net-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:/home/tc/ipv6-netfilter-$KERNEL_VERSION-tinycore-560z.tcz ./
+md5sum ./ipv6-netfilter-$KERNEL_VERSION-tinycore-560z.tcz > ./ipv6-netfilter-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+cat ./ipv6-netfilter-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/parport-modules-$KERNEL_VERSION-tinycore-560z.tcz ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/
-md5sum ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/parport-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/parport-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
-cat ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/parport-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:/home/tc/net-modules-$KERNEL_VERSION-tinycore-560z.tcz ./
+md5sum ./net-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./net-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+cat ./net-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/pcmcia-modules-$KERNEL_VERSION-tinycore-560z.tcz ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/
-md5sum ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/pcmcia-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/pcmcia-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
-cat ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/pcmcia-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:/home/tc/parport-modules-$KERNEL_VERSION-tinycore-560z.tcz ./
+md5sum ./parport-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./parport-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+cat ./parport-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/usb-modules-$KERNEL_VERSION-tinycore-560z.tcz ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/
-md5sum ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/usb-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/usb-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
-cat ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/usb-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:/home/tc/pcmcia-modules-$KERNEL_VERSION-tinycore-560z.tcz ./
+md5sum ./pcmcia-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./pcmcia-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+cat ./pcmcia-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/bzImage-$KERNEL_VERSION.$TINYCORE_ITERATION ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/
-md5sum ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/bzImage-$KERNEL_VERSION.$TINYCORE_ITERATION > ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/bzImage-$KERNEL_VERSION.$TINYCORE_ITERATION.md5.txt
-cat ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/bzImage-$KERNEL_VERSION.$TINYCORE_ITERATION.md5.txt
+sudo docker cp tcl-core-560z-main-1:/home/tc/usb-modules-$KERNEL_VERSION-tinycore-560z.tcz ./
+md5sum ./usb-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./usb-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+cat ./usb-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/core-$KERNEL_VERSION.$TINYCORE_ITERATION.gz ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/
-md5sum ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/core-$KERNEL_VERSION.$TINYCORE_ITERATION.gz > ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/core-$KERNEL_VERSION.$TINYCORE_ITERATION.gz.md5.txt
-cat ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/core-$KERNEL_VERSION.$TINYCORE_ITERATION.gz.md5.txt
+sudo docker cp tcl-core-560z-main-1:/home/tc/wireless-$KERNEL_VERSION-tinycore-560z.tcz ./
+md5sum ./wireless-$KERNEL_VERSION-tinycore-560z.tcz > ./wireless-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+cat ./wireless-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
 
+sudo docker cp tcl-core-560z-main-1:/home/tc/bzImage-$KERNEL_VERSION.$TINYCORE_ITERATION ./
+md5sum ./bzImage-$KERNEL_VERSION.$TINYCORE_ITERATION > ./bzImage-$KERNEL_VERSION.$TINYCORE_ITERATION.md5.txt
+cat ./bzImage-$KERNEL_VERSION.$TINYCORE_ITERATION.md5.txt
+
+sudo docker cp tcl-core-560z-main-1:/home/tc/core-$KERNEL_VERSION.$TINYCORE_ITERATION.gz ./
+md5sum ./core-$KERNEL_VERSION.$TINYCORE_ITERATION.gz > ./core-$KERNEL_VERSION.$TINYCORE_ITERATION.gz.md5.txt
+cat ./core-$KERNEL_VERSION.$TINYCORE_ITERATION.gz.md5.txt
+
+cd ../..
 sudo docker compose --progress=plain -f docker-compose.yml down
 

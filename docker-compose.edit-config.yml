@@ -1,6 +1,6 @@
 services:
   main:
-    image: linichotmailca/tcl-core-560z-edit-config:6.13.7.16.1
+    image: linichotmailca/tcl-core-560z-edit-config:6.13.7.16.6
     build:
       context: .
       args:
