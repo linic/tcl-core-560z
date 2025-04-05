@@ -37,10 +37,10 @@ RUN tce-load -wi openssl-dev
 # 2. get rootfs.gz directly
 # Note: for 16.0beta1, core.gz doesn't exist yet. So rootfs.gz must be used.
 # For release versions, core.gz exists and can be used. The code below works with both.
-# curl works better than wget to get the core.gz and kernel.tar.xz from the net.
-RUN tce-load -wi curl
 # Getting core.gz for later
-RUN curl --remote-name http://tinycorelinux.net/$TCL_VERSION/x86/$TCL_RELEASE_TYPE/distribution_files/$CORE_GZ
+RUN wget http://tinycorelinux.net/$TCL_VERSION/x86/$TCL_RELEASE_TYPE/distribution_files/$CORE_GZ
+RUN wget http://tinycorelinux.net/$TCL_VERSION/x86/$TCL_RELEASE_TYPE/distribution_files/$CORE_GZ.md5.txt
+RUN md5sum -c $CORE_GZ.md5.txt
 # Getting, editing and unpacking the official core.gz as explained in
 # https://wiki.tinycorelinux.net/doku.php?id=wiki:custom_kernel&s[]=custom&s[]=kernel
 ENV CORE_TEMP_PATH=$HOME_TC/coretmp
@@ -58,6 +58,8 @@ WORKDIR $HOME_TC
 ENV KERNEL_VERSION_NAME=linux-$KERNEL_VERSION
 ENV KERNEL_SOURCE_PATH=$HOME_TC/$KERNEL_VERSION_NAME
 ENV KERNEL_TAR_XZ=$KERNEL_VERSION_NAME.tar.xz
+# installing curl installs the CA certificates and avoids using wget and trusting any certificate since kernel.org is in https.
+RUN tce-load -wi curl
 RUN curl --remote-name https://cdn.kernel.org/pub/linux/kernel/$KERNEL_BRANCH/$KERNEL_TAR_XZ
 RUN tar x -f $KERNEL_TAR_XZ
 # Making the kernel, the modules and installing them
@@ -66,11 +68,15 @@ WORKDIR $KERNEL_SOURCE_PATH
 # don't load it because they don't have the permission and they default to a default
 # config which breaks in a confusing way.
 COPY --chown=tc:staff .config ./.config
-RUN make bzImage
-# Overwrite sound driver files with increased logging for debugging
-COPY --chown=tc:staff cs4237b/source/ $KERNEL_SOURCE_PATH/
+# Patch the cs4236 and wss files.
+COPY --chown=tc:staff cs4237b/patches/ $KERNEL_SOURCE_PATH/
 WORKDIR $KERNEL_SOURCE_PATH
-
+RUN patch -p1 < cs4236.c.patch
+RUN patch -p1 < cs4236_lib.c.patch
+RUN patch -p1 < wss.h.patch
+RUN patch -p1 < wss_lib.c.patch
+# Make the kernel
+RUN make bzImage
 # Make the modules
 RUN make modules
 ENV KERNEL_MODULES_INSTALL_PATH=$HOME_TC/modules
@@ -79,8 +85,9 @@ RUN make INSTALL_MOD_PATH=$KERNEL_MODULES_INSTALL_PATH modules_install
 # Continuing, editing and unpacking the official core.gz as explained in
 # https://wiki.tinycorelinux.net/doku.php?id=wiki:custom_kernel&s[]=custom&s[]=kernel
 # Adding our custom built modules which will work with our custom kernel
+RUN if [ ! -d $CORE_TEMP_MODULES_PATH ]; then sudo mkdir -p $CORE_TEMP_MODULES_PATH; fi
 RUN sudo cp -rv $KERNEL_MODULES_INSTALL_PATH/lib/modules/$KERNEL_VERSION-$KERNEL_SUFFIX $CORE_TEMP_MODULES_PATH/
-# Let's compress the sound modules with gzip and advdef since it is like that in the official core.gz
+# Let's compress the modules with gzip and advdef since it is like that in the official core.gz
 WORKDIR $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX
 COPY --chown=tc:staff --chmod=0755 compress_modules.sh . 
 RUN sudo ./compress_modules.sh
@@ -103,9 +110,10 @@ WORKDIR $HOME_TC
 ENV ALSA_MODULES_TCZ_INSTALL_PATH=alsa-modules-$KERNEL_VERSION-$KERNEL_SUFFIX
 ENV ALSA_MODULES_TCZ=$ALSA_MODULES_TCZ_INSTALL_PATH.tcz
 ENV SOUND_INSTALL_PATH=$ALSA_MODULES_TCZ_INSTALL_PATH/usr/local/lib/modules/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/sound
+ENV SOUND_MODULES_SOURCE=$CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/sound
 RUN mkdir -p $SOUND_INSTALL_PATH
 # Move the sound modules from core since we'll have them in the alsa-modules-KERNEL.tcz
-RUN sudo mv $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/sound $SOUND_INSTALL_PATH
+RUN if [ -d $SOUND_MODULES_SOURCE ]; then sudo mv $SOUND_MODULES_SOURCE $SOUND_INSTALL_PATH; else echo "no $SOUND_MODULES_SOURCE" >> $SOUND_INSTALL_PATH/readme.txt; fi
 RUN mksquashfs $ALSA_MODULES_TCZ_INSTALL_PATH $ALSA_MODULES_TCZ
 RUN unsquashfs -l $ALSA_MODULES_TCZ
 
@@ -113,9 +121,10 @@ RUN unsquashfs -l $ALSA_MODULES_TCZ
 ENV WIRELESS_MODULES_TCZ_INSTALL_PATH=wireless-$KERNEL_VERSION-$KERNEL_SUFFIX
 ENV WIRELESS_MODULES_TCZ=$WIRELESS_MODULES_TCZ_INSTALL_PATH.tcz
 ENV DRIVERS_WIRELESS_INSTALL_PATH=$WIRELESS_MODULES_TCZ_INSTALL_PATH/usr/local/lib/modules/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/net/wireless
+ENV DRIVERS_WIRELESS_SOURCE=$CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/net/wireless
 RUN mkdir -p $DRIVERS_WIRELESS_INSTALL_PATH
 # Move the net/wireless modules from core since we'll have them in the wireless-KERNEL.tcz
-RUN sudo mv $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/net/wireless $DRIVERS_WIRELESS_INSTALL_PATH
+RUN if [ -d $DRIVERS_WIRELESS_SOURCE ]; then sudo mv $DRIVERS_WIRELESS_SOURCE $DRIVERS_WIRELESS_INSTALL_PATH; else echo "no $DRIVERS_WIRELESS_SOURCE" >> $DRIVERS_WIRELESS_INSTALL_PATH/readme.txt; fi
 RUN mksquashfs $WIRELESS_MODULES_TCZ_INSTALL_PATH $WIRELESS_MODULES_TCZ
 RUN unsquashfs -l $WIRELESS_MODULES_TCZ
 
@@ -123,14 +132,20 @@ RUN unsquashfs -l $WIRELESS_MODULES_TCZ
 ENV IPV6_NETFILTER_MODULES_TCZ_INSTALL_PATH=ipv6-netfilter-$KERNEL_VERSION-$KERNEL_SUFFIX
 ENV IPV6_NETFILTER_MODULES_TCZ=$IPV6_NETFILTER_MODULES_TCZ_INSTALL_PATH.tcz
 ENV IPV6_NETFILTER_INSTALL_PATH=$IPV6_NETFILTER_MODULES_TCZ_INSTALL_PATH/usr/local/lib/modules/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/net
+ENV IPV4_NETFILTER_MODULES_SOURCE=$CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/net/ipv4/netfilter
+ENV IPV4_NETFILTER_MODULES_DESTINATION=$IPV6_NETFILTER_INSTALL_PATH/ipv4/netfilter
+ENV NETFILTER_MODULES_SOURCE=$CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/net/netfilter
+ENV NETFILTER_MODULES_DESTINATION=$IPV6_NETFILTER_INSTALL_PATH/netfilter
+ENV IPV6_MODULES_SOURCE=$CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/net/ipv6
+ENV IPV6_MODULES_DESTINATION=$IPV6_NETFILTER_INSTALL_PATH/ipv6
 RUN mkdir -p $IPV6_NETFILTER_INSTALL_PATH
 RUN mkdir -p $IPV6_NETFILTER_INSTALL_PATH/ipv4/netfilter
 RUN mkdir -p $IPV6_NETFILTER_INSTALL_PATH/ipv6
 RUN mkdir -p $IPV6_NETFILTER_INSTALL_PATH/netfilter
 # Move the net/ipv4/netfilter, net/ipv6, net/netfilter modules from core since we'll have them in the ipv6-netfilter-KERNEL.tcz
-RUN sudo mv $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/net/ipv4/netfilter $IPV6_NETFILTER_INSTALL_PATH/ipv4/netfilter
-RUN sudo mv $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/net/ipv6 $IPV6_NETFILTER_INSTALL_PATH/ipv6
-RUN sudo mv $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/net/netfilter $IPV6_NETFILTER_INSTALL_PATH/netfilter
+RUN if [ -d $IPV4_NETFILTER_MODULES_SOURCE ]; then sudo mv $IPV4_NETFILTER_MODULES_SOURCE $IPV4_NETFILTER_MODULES_DESTINATION; else echo "no $IPV4_NETFILTER_MODULES_SOURCE" >> $IPV4_NETFILTER_MODULES_DESTINATION/readme.txt; fi
+RUN if [ -d $NETFILTER_MODULES_SOURCE ]; then sudo mv $NETFILTER_MODULES_SOURCE $NETFILTER_MODULES_DESTINATION; else echo "no $NETFILTER_MODULES_SOURCE" >> $NETFILTER_MODULES_DESTINATION/readme.txt; fi
+RUN if [ -d $IPV6_MODULES_SOURCE ]; then sudo mv $IPV6_MODULES_SOURCE $IPV6_MODULES_DESTINATION; else echo "no $IPV6_MODULES_SOURCE" >> $IPV6_MODULES_DESTINATION/readme.txt; fi
 RUN mksquashfs $IPV6_NETFILTER_MODULES_TCZ_INSTALL_PATH $IPV6_NETFILTER_MODULES_TCZ
 RUN unsquashfs -l $IPV6_NETFILTER_MODULES_TCZ
 
@@ -161,9 +176,10 @@ RUN unsquashfs -l $USB_MODULES_TCZ
 ENV PCMCIA_MODULES_TCZ_INSTALL_PATH=pcmcia-modules-$KERNEL_VERSION-$KERNEL_SUFFIX
 ENV PCMCIA_MODULES_TCZ=$PCMCIA_MODULES_TCZ_INSTALL_PATH.tcz
 ENV PCMCIA_INSTALL_PATH=$PCMCIA_MODULES_TCZ_INSTALL_PATH/usr/local/lib/modules/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/pcmcia
+ENV PCMCIA_MODULES_SOURCE=$CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/pcmcia
 RUN mkdir -p $PCMCIA_INSTALL_PATH
 # Move the kernel/drivers/pcmcia modules from core since we'll have them in the pcmcia-modules-KERNEL.tcz
-RUN sudo mv $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/pcmcia $PCMCIA_INSTALL_PATH
+RUN if [ -d $PCMCIA_MODULES_SOURCE ]; then sudo mv $PCMCIA_MODULES_SOURCE $PCMCIA_INSTALL_PATH; else echo "no $PCMCIA_MODULES_SOURCE" >> $PCMCIA_INSTALL_PATH/readme.txt; fi
 RUN mksquashfs $PCMCIA_MODULES_TCZ_INSTALL_PATH $PCMCIA_MODULES_TCZ
 RUN unsquashfs -l $PCMCIA_MODULES_TCZ
 
@@ -171,9 +187,10 @@ RUN unsquashfs -l $PCMCIA_MODULES_TCZ
 ENV PARPORT_MODULES_TCZ_INSTALL_PATH=parport-modules-$KERNEL_VERSION-$KERNEL_SUFFIX
 ENV PARPORT_MODULES_TCZ=$PARPORT_MODULES_TCZ_INSTALL_PATH.tcz
 ENV PARPORT_INSTALL_PATH=$PARPORT_MODULES_TCZ_INSTALL_PATH/usr/local/lib/modules/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/parport
+ENV PARPORT_MODULES_SOURCE=$CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/parport
 RUN mkdir -p $PARPORT_INSTALL_PATH
 # Move the kernel/drivers/parport modules from core since we'll have them in the parport-modules-KERNEL.tcz
-RUN sudo mv $CORE_TEMP_MODULES_PATH/$KERNEL_VERSION-$KERNEL_SUFFIX/kernel/drivers/parport $PARPORT_INSTALL_PATH
+RUN if [ -d $PARPORT_MODULES_SOURCE ]; then sudo mv $PARPORT_MODULES_SOURCE $PARPORT_INSTALL_PATH; else echo "no $PARPORT_MODULES_SOURCE" >> $PARPORT_INSTALL_PATH/readme.txt; fi
 RUN mksquashfs $PARPORT_MODULES_TCZ_INSTALL_PATH $PARPORT_MODULES_TCZ
 RUN unsquashfs -l $PARPORT_MODULES_TCZ
 

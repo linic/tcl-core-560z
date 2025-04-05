@@ -87,7 +87,9 @@ to the cs4236 driver sound does end up working.
 
 I remove `cport` and `cimage` from the snd cs4236 driver. See files here [cs4237b](./cs4237b/).
 I also simplified and deleted code which would not run because the `chip->hardware` is
-`WSS_HW_CS4237B`. I clarified many variables and methods and added comments.
+`WSS_HW_CS4237B`. I clarified many variables and methods and added comments. I based my changes
+on the code in the linux kernel 6.12.11. See [cs4237b/patches](./cs4237b/patches/) for patch
+files.
 
 ## tools
 See the [tools](./tools/) for scripts which automate many steps

@@ -20,12 +20,12 @@ fi
 # Save the first parameter as the build version.
 BUILD_VERSION=$1
 TCL_RELEASE_TYPE=$2
-if [ $TCL_RELEASE_TYPE != "release" && $TCL_RELEASE_TYPE!= "release_candidates" ]; then
+if [ $TCL_RELEASE_TYPE != "release" ] && [ $TCL_RELEASE_TYPE != "release_candidates" ]; then
   echo "The 2nd parameter should be either 'release' or 'release_candidates'."
   exit 12
 fi
 CORE_GZ=$3
-if [ $CORE_GZ != "core.gz" && $CORE_GZ != "rootfs.gz" ]; then
+if [ $CORE_GZ != "core.gz" ] && [ $CORE_GZ != "rootfs.gz" ]; then
   echo "The 3rd parameter should be either 'core.gz' or 'rootfs.gz'."
   exit 13
 fi
