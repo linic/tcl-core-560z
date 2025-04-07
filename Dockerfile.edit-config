@@ -27,11 +27,13 @@ ENV KERNEL_TAR_XZ=$KERNEL_VERSION_NAME.tar.xz
 RUN curl --remote-name https://cdn.kernel.org/pub/linux/kernel/$KERNEL_BRANCH/$KERNEL_TAR_XZ
 RUN tar x -f $KERNEL_TAR_XZ
 WORKDIR $KERNEL_SOURCE_PATH
-COPY .config ./.config
-# IMPORTANT! the .config file has to be owned by tc:staff otherwise the make commands
+# NOTE 1: IMPORTANT! the .config file has to be owned by tc:staff otherwise the make commands
 # don't load it because they don't have the permission and they default to a default
 # config which breaks in a confusing way.
-RUN sudo chown tc:staff .config
+COPY --chown=tc:staff .config ./.config
+COPY --chown=tc:staff .config-v5.x ./.config-v5.x
+COPY --chown=tc:staff tools/pick-config.sh ./
+RUN ./pick-config.sh $KERNEL_BRANCH
 # Then if you docker compose build you'll be able to docker exec -it into it and move around or
 # docker cp files out of it.
 COPY echo_sleep /

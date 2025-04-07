@@ -163,7 +163,7 @@ static inline u8 wss_inb(struct snd_wss *chip, u8 offset)
 {
 	u8 value = inb(chip->port + offset);
 	if (offset == CS4231P(REGSEL) || offset == CS4231P(STATUS) || offset == CS4231P(PIO)) {
-		dev_dbg(chip->card->dev, "R%u reads 0x%x\n", offset, value);
+		snd_printk(KERN_DEBUG "R%u reads 0x%x\n", offset, value);
 	}
 	return value;
 }
@@ -182,11 +182,12 @@ static void snd_wss_wait_delay(struct snd_wss *chip, unsigned char delay_microse
 		is_init_set = i0 & CS4231_INIT;
 	}
 	if (is_init_set) {
-		dev_err(chip->card->dev, "snd_wss_wait - INIT is still 1. I0=0x%x\n", i0);
+		snd_printk(KERN_ERR "snd_wss_wait - INIT is still 1. I0=0x%x\n", i0);
 	}
 }
 
-static void snd_wss_wait(struct snd_wss *chip) {
+static void snd_wss_wait(struct snd_wss *chip)
+{
 	/* This loop timeouts roughly 0.025 second. */
 	snd_wss_wait_delay(chip, 100);
 }
@@ -194,14 +195,15 @@ static void snd_wss_wait(struct snd_wss *chip) {
 /* Functionally similar to snd_wss_out, but the waiting time between each INIT check
  * is 10 microseconds instead of 100 microseconds. I'm not sure why, but since it works
  * I stopped investigating. */
-static void snd_wss_dout(struct snd_wss *chip, unsigned char reg, unsigned char value)
+static void snd_wss_dout(struct snd_wss *chip, unsigned char reg,
+			 unsigned char value)
 {
 	/* This loop timeouts roughly after 0.0025 second. */
 	snd_wss_wait_delay(chip, 10);
 	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | reg);
 	wss_outb(chip, CS4231P(REG), value);
 	mb();
-	dev_dbg(chip->card->dev, "I%u set to 0x%x\n", reg, value);
+	snd_printk(KERN_DEBUG "I%u set to 0x%x\n", reg, value);
 }
 
 /* Select an index register and write a new value to it. */
@@ -221,7 +223,7 @@ void snd_wss_out(struct snd_wss *chip, unsigned char index_register_address, uns
 	chip->image[index_register_address] = index_register_new_value;
 	/* mb() prevents loads and stores being reordered across this point */
 	mb();
-	dev_dbg(chip->card->dev, "I%u set to 0x%x\n", index_register_address, index_register_new_value);
+	snd_printdd("I%u set to 0x%x\n", index_register_address, index_register_new_value);
 }
 
 /* Make the function available to other drivers. */
@@ -235,7 +237,7 @@ unsigned char snd_wss_in(struct snd_wss *chip, unsigned char reg)
 	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | reg);
 	mb();
 	index_register_value = wss_inb(chip, CS4231P(REG));
-	dev_dbg(chip->card->dev, "I%u reads 0x%x\n", reg, index_register_value);
+	snd_printdd("I%u reads 0x%x\n", reg, index_register_value);
 	return index_register_value;
 }
 
@@ -350,7 +352,7 @@ void snd_cs4236_ext_out(struct snd_wss *chip, unsigned char extended_register_ad
 	wss_outb(chip, CS4231P(REG), extended_register_address | (chip->image[CS4236_EXT_REG] & 0x01));
 	wss_outb(chip, CS4231P(REG), new_value);
 	chip->eimage[CS4236_REG(extended_register_address)] = new_value;
-	dev_dbg(chip->card->dev, "X%u set to 0x%x (XRAE=0x%x)\n", xa4_xa0, new_value, xrae);
+	snd_printdd("X%u set to 0x%x (XRAE=0x%x)\n", xa4_xa0, new_value, xrae);
 }
 
 /* Make this function available to other drivers. */
@@ -368,7 +370,7 @@ unsigned char snd_cs4236_ext_in(struct snd_wss *chip, unsigned char extended_reg
 	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | i23_address);
 	wss_outb(chip, CS4231P(REG), extended_register_address | (chip->image[CS4236_EXT_REG] & 0x01));
 	res = wss_inb(chip, CS4231P(REG));
-	dev_dbg(chip->card->dev, "X%u reads 0x%x (XRAE=0x%x)\n", xa4_xa0, res, xrae);
+	snd_printdd("X%u reads 0x%x (XRAE=0x%x)\n", xa4_xa0, res, xrae);
 	return res;
 }
 
@@ -487,7 +489,7 @@ void snd_wss_mce_down(struct snd_wss *chip)
 	}
 
 	if (!is_init_cleared || !is_aci_cleared) {
-		dev_err(chip->card->dev, "is_init_cleared=%d,is_aci_cleared=%d,I0=0x%x,I11=0x%x\n", is_init_cleared, is_aci_cleared, i0, i11);
+		snd_printk(KERN_ERR "is_init_cleared=%d,is_aci_cleared=%d,I0=0x%x,I11=0x%x\n", is_init_cleared, is_aci_cleared, i0, i11);
 	}
 }
 /* Make this function available in other files.*/
@@ -603,7 +605,7 @@ static unsigned char snd_wss_get_format(struct snd_wss *chip,
 	}
 	if (channels > 1)
 		rformat |= CS4231_STEREO;
-	dev_dbg(chip->card->dev, "snd_wss_get_format(format=0x%x, rformat=0x%x)\n", format, rformat);
+	snd_printk(KERN_DEBUG "snd_wss_get_format(format=0x%x, rformat=0x%x)\n", format, rformat);
 	return rformat;
 }
 
@@ -764,7 +766,7 @@ static void snd_wss_init(struct snd_wss *chip)
 	snd_wss_calibrate_mute(chip, 1);
 	snd_wss_mce_down(chip);
 
-	dev_dbg(chip->card->dev, "init: (1)\n");
+	snd_printk(KERN_DEBUG "init: (1)\n");
 	snd_wss_mce_up(chip);
 	spin_lock_irqsave(&chip->reg_lock, flags);
 	chip->image[CS4231_IFACE_CTRL] &= ~(CS4231_PLAYBACK_ENABLE |
@@ -777,7 +779,7 @@ static void snd_wss_init(struct snd_wss *chip)
 	spin_unlock_irqrestore(&chip->reg_lock, flags);
 	snd_wss_mce_down(chip);
 
-	dev_dbg(chip->card->dev, "init: (2)\n");
+	snd_printk(KERN_DEBUG "init: (2)\n");
 
 	snd_wss_mce_up(chip);
 	spin_lock_irqsave(&chip->reg_lock, flags);
@@ -788,8 +790,8 @@ static void snd_wss_init(struct snd_wss *chip)
 	spin_unlock_irqrestore(&chip->reg_lock, flags);
 	snd_wss_mce_down(chip);
 
-	dev_dbg(chip->card->dev, "init: (3) - afei = 0x%x\n",
-		chip->image[CS4231_ALT_FEATURE_1]);
+	snd_printk(KERN_DEBUG "init: (3) - afei = 0x%x\n",
+		   chip->image[CS4231_ALT_FEATURE_1]);
 
 	spin_lock_irqsave(&chip->reg_lock, flags);
 	snd_wss_out(chip, CS4231_ALT_FEATURE_2,
@@ -803,7 +805,7 @@ static void snd_wss_init(struct snd_wss *chip)
 	spin_unlock_irqrestore(&chip->reg_lock, flags);
 	snd_wss_mce_down(chip);
 
-	dev_dbg(chip->card->dev, "init: (4)\n");
+	snd_printk(KERN_DEBUG "init: (4)\n");
 
 	snd_wss_mce_up(chip);
 	spin_lock_irqsave(&chip->reg_lock, flags);
@@ -814,7 +816,7 @@ static void snd_wss_init(struct snd_wss *chip)
 	snd_wss_mce_down(chip);
 	snd_wss_calibrate_mute(chip, 0);
 
-	dev_dbg(chip->card->dev, "init: (5)\n");
+	snd_printk(KERN_DEBUG "init: (5)\n");
 }
 
 static int snd_wss_open(struct snd_wss *chip, unsigned int mode)
@@ -1162,9 +1164,9 @@ static int snd_wss_probe(struct snd_wss *chip)
 	id = snd_wss_in(chip, CS4231_MISC_INFO) & 0x0f;
 	spin_unlock_irqrestore(&chip->reg_lock, flags);
 	/* This is port = 0x530, id = 0xa for my IBM 560z */
-	dev_dbg(chip->card->dev, "wss: port = 0x%lx, id = 0x%x\n", chip->port, id);
+	snd_printdd("wss: port = 0x%lx, id = 0x%x\n", chip->port, id);
 	if (id != 0x0a) {
-		dev_err(chip->card->dev, "invalid device with id 0x%x\n", id);
+		snd_printk(KERN_ERR	"invalid devoice with id 0x%x\n", id);
 		return -ENODEV;	/* no valid device found */
 	}
 
@@ -1175,13 +1177,12 @@ static int snd_wss_probe(struct snd_wss *chip)
 	 * D7 D6 D5 D4 D3 D2 D1 D0
 	 * V2 V1 V0 CID4 CID3 CID2 CID1 CID0
 	 * CID4-CID0 00011 - CS4236, CS4237B */
-	dev_dbg(chip->card->dev, "CS4231: VERSION (I25) = 0x%x\n", rev);
+	snd_printdd("CS4231: VERSION (I25) = 0x%x\n", rev);
 	if (rev != 0x03) {
-		dev_err(chip->card->dev, "not the 560z and not the CS4237B because version 0x%x\n", rev);
-		return -ENODEV;		/* unknown CS4231 chip? */
+		snd_printk(KERN_ERR "not the 560z and not the CS4237B because version 0x%x\n", rev);
+			return -ENODEV;		/* unknown CS4231 chip? */
 	}
 	mb();
-
 	/* CS4236_VERSION is 0x9c which is 0b1001 1100
 	 * Extended Register Access (I23)
 	 * D7  D6  D5  D4  D3   D2  D1  D0
@@ -1216,11 +1217,11 @@ static int snd_wss_probe(struct snd_wss *chip)
 			case 7:
 				break;
 			default:
-				dev_err(chip->card->dev, "unknown CS4237B chip (enhanced version = 0x%x)\n", id);
+				snd_printk(KERN_ERR "unknown CS4237B chip (enhanced version = 0x%x)\n", id);
 		}
 	}
 	else {
-		dev_err(chip->card->dev, "unknown CS4236/CS423xB chip (enhanced version = 0x%x)\n", id);
+		snd_printk(KERN_ERR "unknown CS4236/CS423xB chip (enhanced version = 0x%x)\n", id);
 	}
 
 	spin_lock_irqsave(&chip->reg_lock, flags);
@@ -1425,12 +1426,42 @@ static void snd_wss_resume(struct snd_wss *chip)
 	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | (timeout & 0x1f));
 	spin_unlock_irqrestore(&chip->reg_lock, flags);
 	if (timeout == 0x80)
-		dev_dbg(chip->card->dev, "down [0x%lx]: serious init problem - codec still busy\n", chip->port);
+		snd_printk(KERN_ERR "down [0x%lx]: serious init problem "
+			   "- codec still busy\n", chip->port);
 	if ((timeout & CS4231_MCE) == 0 ||
 	    !(chip->hardware & (WSS_HW_CS4231_MASK | WSS_HW_CS4232_MASK))) {
 		return;
 	}
 	snd_wss_busy_wait(chip);
+}
+
+static int snd_wss_free(struct snd_wss *chip)
+{
+	release_and_free_resource(chip->res_port);
+	if (chip->irq >= 0) {
+		disable_irq(chip->irq);
+		if (!(chip->hwshare & WSS_HWSHARE_IRQ))
+			free_irq(chip->irq, (void *) chip);
+	}
+	if (!(chip->hwshare & WSS_HWSHARE_DMA1) && chip->dma1 >= 0) {
+		snd_dma_disable(chip->dma1);
+		free_dma(chip->dma1);
+	}
+	if (!(chip->hwshare & WSS_HWSHARE_DMA2) &&
+	    chip->dma2 >= 0 && chip->dma2 != chip->dma1) {
+		snd_dma_disable(chip->dma2);
+		free_dma(chip->dma2);
+	}
+	if (chip->timer)
+		snd_device_free(chip->card, chip->timer);
+	kfree(chip);
+	return 0;
+}
+
+static int snd_wss_dev_free(struct snd_device *device)
+{
+	struct snd_wss *chip = device->device_data;
+	return snd_wss_free(chip);
 }
 
 const char *snd_wss_chip_id(struct snd_wss *chip)
@@ -1486,7 +1517,7 @@ static int snd_wss_new(struct snd_card *card,
 	struct snd_wss *chip;
 
 	*rchip = NULL;
-	chip = devm_kzalloc(card->dev, sizeof(*chip), GFP_KERNEL);
+	chip = kzalloc(sizeof(*chip), GFP_KERNEL);
 	if (chip == NULL)
 		return -ENOMEM;
 	chip->hardware = hardware;
@@ -1514,10 +1545,16 @@ static int snd_wss_new(struct snd_card *card,
 	return 0;
 }
 
-int snd_wss_create(struct snd_card *card, unsigned long port,
-		      int irq, int dma1, int dma2, unsigned short hardware,
-		      unsigned short hwshare, struct snd_wss **rchip)
+int snd_wss_create(struct snd_card *card,
+		      unsigned long port,
+		      int irq, int dma1, int dma2,
+		      unsigned short hardware,
+		      unsigned short hwshare,
+		      struct snd_wss **rchip)
 {
+	static const struct snd_device_ops ops = {
+		.dev_free =	snd_wss_dev_free,
+	};
 	struct snd_wss *chip;
 	int err;
 
@@ -1529,29 +1566,32 @@ int snd_wss_create(struct snd_card *card, unsigned long port,
 	chip->dma1 = -1;
 	chip->dma2 = -1;
 
-	chip->res_port = devm_request_region(card->dev, port, 4, "WSS");
+	chip->res_port = request_region(port, 4, "WSS");
 	if (!chip->res_port) {
-		dev_dbg(chip->card->dev, "wss: can't grab port 0x%lx\n", port);
+		snd_printk(KERN_ERR "wss: can't grab port 0x%lx\n", port);
+		snd_wss_free(chip);
 		return -EBUSY;
 	}
 	chip->port = port;
 	if (!(hwshare & WSS_HWSHARE_IRQ))
-		if (devm_request_irq(card->dev, irq, snd_wss_interrupt, 0,
-				     "WSS", (void *) chip)) {
-			dev_dbg(chip->card->dev, "wss: can't grab IRQ %d\n", irq);
+		if (request_irq(irq, snd_wss_interrupt, 0,
+				"WSS", (void *) chip)) {
+			snd_printk(KERN_ERR "wss: can't grab IRQ %d\n", irq);
+			snd_wss_free(chip);
 			return -EBUSY;
 		}
 	chip->irq = irq;
 	card->sync_irq = chip->irq;
-	if (!(hwshare & WSS_HWSHARE_DMA1) &&
-	    snd_devm_request_dma(card->dev, dma1, "WSS - 1")) {
-		dev_dbg(chip->card->dev, "wss: can't grab DMA1 %d\n", dma1);
+	if (!(hwshare & WSS_HWSHARE_DMA1) && request_dma(dma1, "WSS - 1")) {
+		snd_printk(KERN_ERR "wss: can't grab DMA1 %d\n", dma1);
+		snd_wss_free(chip);
 		return -EBUSY;
 	}
 	chip->dma1 = dma1;
-	if (!(hwshare & WSS_HWSHARE_DMA2) && dma1 != dma2 && dma2 >= 0 &&
-	    snd_devm_request_dma(card->dev, dma2, "WSS - 2")) {
-		dev_dbg(chip->card->dev, "wss: can't grab DMA2 %d\n", dma2);
+	if (!(hwshare & WSS_HWSHARE_DMA2) && dma1 != dma2 &&
+	      dma2 >= 0 && request_dma(dma2, "WSS - 2")) {
+		snd_printk(KERN_ERR "wss: can't grab DMA2 %d\n", dma2);
+		snd_wss_free(chip);
 		return -EBUSY;
 	}
 	/* For my 560z, dma1=1 and dma2=3 so I removed the chip->single_dma
@@ -1559,9 +1599,18 @@ int snd_wss_create(struct snd_card *card, unsigned long port,
 	chip->dma2 = dma2;
 
 	/* global setup */
-	if (snd_wss_probe(chip) < 0)
+	if (snd_wss_probe(chip) < 0) {
+		snd_wss_free(chip);
 		return -ENODEV;
+	}
 	snd_wss_init(chip);
+
+	/* Register device */
+	err = snd_device_new(card, SNDRV_DEV_LOWLEVEL, chip, &ops);
+	if (err < 0) {
+		snd_wss_free(chip);
+		return err;
+	}
 
 	/* Power Management */
 	chip->suspend = snd_wss_suspend;

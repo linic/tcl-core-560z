@@ -9,10 +9,10 @@
 # See the Dockerfile for more details about how the modules are replaced.
 CORE_GZ=rootfs.gz
 
-ITERATION=7
-LINUX_KERNEL_VERSION=6.13.7
+ITERATION=6
+LINUX_KERNEL_VERSION=5.10.235
 TCL_MAJOR_VERSION=16
-TCL_RELEASE_TYPE=release_candidates
+TCL_RELEASE_TYPE=release
 
 all: edit build publish
 

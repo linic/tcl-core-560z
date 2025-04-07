@@ -64,17 +64,23 @@ RUN curl --remote-name https://cdn.kernel.org/pub/linux/kernel/$KERNEL_BRANCH/$K
 RUN tar x -f $KERNEL_TAR_XZ
 # Making the kernel, the modules and installing them
 WORKDIR $KERNEL_SOURCE_PATH
-# IMPORTANT! the .config file has to be owned by tc:staff otherwise the make commands
+# NOTE 1: IMPORTANT! the .config file has to be owned by tc:staff otherwise the make commands
 # don't load it because they don't have the permission and they default to a default
 # config which breaks in a confusing way.
 COPY --chown=tc:staff .config ./.config
+COPY --chown=tc:staff .config-v5.x ./.config-v5.x
+COPY --chown=tc:staff tools/pick-config.sh ./
+RUN ./pick-config.sh $KERNEL_BRANCH
 # Patch the cs4236 and wss files.
-COPY --chown=tc:staff cs4237b/patches/ $KERNEL_SOURCE_PATH/
 WORKDIR $KERNEL_SOURCE_PATH
-RUN patch -p1 < cs4236.c.patch
-RUN patch -p1 < cs4236_lib.c.patch
-RUN patch -p1 < wss.h.patch
-RUN patch -p1 < wss_lib.c.patch
+COPY --chown=tc:staff cs4237b/patches $KERNEL_SOURCE_PATH/patches
+COPY --chown=tc:staff cs4237b/patches-5.10.235 $KERNEL_SOURCE_PATH/patches-5.10.235
+COPY --chown=tc:staff tools/pick-patches.sh ./
+RUN ./pick-patches.sh $KERNEL_BRANCH
+RUN patch -p1 < patches/cs4236.c.patch
+RUN patch -p1 < patches/cs4236_lib.c.patch
+RUN patch -p1 < patches/wss.h.patch
+RUN patch -p1 < patches/wss_lib.c.patch
 # Make the kernel
 RUN make bzImage
 # Make the modules

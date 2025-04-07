@@ -16,6 +16,7 @@ If you are on a quest to get sound working on the 560z, I modified the cs4236 dr
 my custom builds before 6.12.11.15.9 would give me `cs4236+ chip detected, but control port 0xffffffff is not valid`.
 It looks like a working version of a driver for the CS4237B specifically on the 560z hasn't existed for a
 long time. All the workarounds I found on the net didn't work for me. More details in another section below.
+I added code changes for 5.10.235 and patches for 6.12.11 and 5.10.235.
 
 ### Which `NAME-modules-KERNEL.tcz` files are generated?
 #### Replacement for `alsa-modules-KERNEL.tcz` referred to by [`alsa.tcz.dep`](http://tinycorelinux.net/15.x/x86/tcz/alsa.tcz.dep)
@@ -45,6 +46,12 @@ supported without trimming `core.gz` or customizing the kernel and modules becau
 and `init` won't start. By selecting only the kernel (and modules) features needed and repacking `core.gz`,
 it's possible to get a much smaller kernel and boot-up TCL core 15.0 and possibly many other TCL versions
 which will come after.
+
+## Why 5.10.235?
+This kernel makes tinycore use less RAM and is a bit faster than the v6.x kernels. I tested wifi with 16.0
+and it works well. Read more below.
+The 5.10 kernels will be supported [by the CIP](https://wiki.linuxfoundation.org/civilinfrastructureplatform/start)
+until [2031 according to wikipedia](https://en.wikipedia.org/wiki/Linux_kernel_version_history).
 
 ### Why the official TCL Core 15.0 won't start?
 Even with a swap partition, TCL Core 15.0 tries to start `init` before loading the swap and since there is 
@@ -90,6 +97,11 @@ I also simplified and deleted code which would not run because the `chip->hardwa
 `WSS_HW_CS4237B`. I clarified many variables and methods and added comments. I based my changes
 on the code in the linux kernel 6.12.11. See [cs4237b/patches](./cs4237b/patches/) for patch
 files.
+
+# wifi with rtl8192cu
+Using 5.10.235.16.6 it's possible to get wifi working with an rtl8192 chip. Kernels
+sometime after 6.1.2 timeout on my 560z when it is the time to authenticate and associate
+with the access point.
 
 ## tools
 See the [tools](./tools/) for scripts which automate many steps

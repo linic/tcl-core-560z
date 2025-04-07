@@ -56,10 +56,10 @@ KERNEL_VERSION=$N1.$N2.$N3
 # Restore IFS otherwise all commands below will split parameters using dots and will fail.
 IFS=$OLD_IFS
 
-if [ ! .config ]; then
+if [ ! .config ] || [ ! .config-v5.x ]; then
   echo "Please make sure this folder is the base folder of "\
     "https://github.com/linic/tcl-core-560z since .config is "\
-    "required."
+    "and .config-v5.x are required."
   exit 7
 fi
 
@@ -68,6 +68,13 @@ if [ ! Dockerfile.edit_config ]; then
     "https://github.com/linic/tcl-core-560z since Dockerfile is "\
     "required."
   exit 8
+fi
+
+if [ ! "tools/pick-config.sh" ]; then
+  echo "Please make sure this folder is the base folder of "\
+    "https://github.com/linic/tcl-core-560z since "\
+    "tools/pick-config.sh is required."
+  exit 9
 fi
 
 if [ ! echo_sleep ]; then
@@ -93,7 +100,10 @@ fi
 
 echo "Requirements are met. Building image to edit the linux kernel .config file..."
 
-sudo docker compose --progress=plain -f docker-compose.edit-config.yml build
+if ! sudo docker compose --progress=plain -f docker-compose.edit-config.yml build; then
+  echo "Docker build to edit the .config failed!"
+  exot 20
+fi
 
 sudo docker compose --progress=plain -f docker-compose.edit-config.yml up --detach
 
@@ -105,7 +115,11 @@ HOME_TC=/home/tc
 KERNEL_VERSION_NAME=linux-$KERNEL_VERSION
 KERNEL_SOURCE_PATH=$HOME_TC/$KERNEL_VERSION_NAME
 
-sudo docker cp tcl-core-560z-main-1:$KERNEL_SOURCE_PATH/.config .
+if [ $N1 = "5" ]; then
+  sudo docker cp tcl-core-560z-main-1:$KERNEL_SOURCE_PATH/.config ./.config-v5.x
+else
+  sudo docker cp tcl-core-560z-main-1:$KERNEL_SOURCE_PATH/.config .
+fi
 
 sudo docker compose --progress=plain -f docker-compose.edit-config.yml down
 

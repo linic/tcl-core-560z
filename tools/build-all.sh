@@ -65,10 +65,10 @@ KERNEL_VERSION=$N1.$N2.$N3
 # Restore IFS otherwise all commands below will split parameters using dots and will fail.
 IFS=$OLD_IFS
 
-if [ ! .config ]; then
+if [ ! .config ] || [ ! .config-v5.x ]; then
   echo "Please make sure this folder is the base folder of "\
-    "https://github.com/linic/tcl-core-560z since .config is "\
-    "required."
+    "https://github.com/linic/tcl-core-560z since .config and "\
+    ".config-v5.x are required."
   exit 7
 fi
 
@@ -186,7 +186,12 @@ echo "  usb-modules-$KERNEL_VERSION.tcz"
 echo "  bzImage-$KERNEL_VERSION.$TINYCORE_ITERATION"
 echo "  core-$KERNEL_VERSION.$TINYCORE_ITERATION.gz"
 
-sudo docker compose --progress=plain -f docker-compose.yml build
+if sudo docker compose --progress=plain -f docker-compose.yml build; then
+  echo "Kernel and TCZs built successfully."
+else
+  echo "Kernel and TCZs build failure!"
+  exit 21
+fi
 
 sudo docker compose --progress=plain -f docker-compose.yml up --detach
 

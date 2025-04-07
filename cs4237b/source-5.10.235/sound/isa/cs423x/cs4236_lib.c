@@ -60,23 +60,23 @@ static void decode_version(struct snd_card *card, unsigned char value) {
 	unsigned char revision_b = 0b10100000;
 	unsigned char revision_cd = 0b11000000;
 	unsigned char revision_e = 0b11100000;
-	dev_dbg(card->dev, "Version=0x%x\n", read_version);
+	snd_printdd("Version=0x%x\n", read_version);
 	read_chip_id = value & chip_id_mask;
 	read_version = value & version_mask;
 	if (read_chip_id == cs4237b_chip_id)
-		dev_dbg(card->dev, "Chip id matches CS4237B\n");
+		snd_printdd("Chip id matches CS4237B\n");
 	else
-		dev_dbg(card->dev, "Chip id unknonwn\n");
+		snd_printdd("Chip id unknonwn\n");
 	if (read_version == revision_a)
-		dev_dbg(card->dev, "Version matches revision a\n");
+		snd_printdd("Version matches revision a\n");
 	else if (read_version == revision_b)
-		dev_dbg(card->dev, "Version matches revision b\n");
+		snd_printdd("Version matches revision b\n");
 	else if (read_version == revision_cd)
-		dev_dbg(card->dev, "Version matches revision c/d\n");
+		snd_printdd("Version matches revision c/d\n");
 	else if (read_version == revision_e)
-		dev_dbg(card->dev, "Version matches revision e\n");
+		snd_printdd("Version matches revision e\n");
 	else
-		dev_dbg(card->dev, "Version has unknown revision\n");
+		snd_printdd("Version has unknown revision\n");
 }
 
 /*
@@ -203,7 +203,8 @@ static void snd_cs4236_resume(struct snd_wss *chip)
 
 /* Modified the snd_cs4236_create to work without control port/device
  */
-int snd_cs4236_create(struct snd_card *card, unsigned long port,
+int snd_cs4236_create(struct snd_card *card,
+		      unsigned long port,
 		      int irq, int dma1, int dma2,
 		      unsigned short hardware,
 		      unsigned short hwshare,
@@ -225,7 +226,7 @@ int snd_cs4236_create(struct snd_card *card, unsigned long port,
 		return err;
 
 	if ((chip->hardware & WSS_HW_CS4236B_MASK) == 0) {
-		dev_dbg(card->dev, "chip is not CS4236+, hardware=0x%x\n", chip->hardware);
+		snd_printd("chip is not CS4236+, hardware=0x%x\n", chip->hardware);
 		*rchip = chip;
 		return 0;
 	}
@@ -852,10 +853,8 @@ static int snd_cs4236_get_iec958_switch(struct snd_kcontrol *kcontrol, struct sn
 	
 	spin_lock_irqsave(&chip->reg_lock, flags);
 	ucontrol->value.integer.value[0] = chip->image[CS4231_ALT_FEATURE_1] & 0x02 ? 1 : 0;
-	dev_dbg(chip->card->dev, "get valid: ALT=0x%x\n", snd_wss_in(chip, CS4231_ALT_FEATURE_1));
+	snd_printdd("get valid: ALT=0x%x\n", snd_wss_in(chip, CS4231_ALT_FEATURE_1));
 	spin_unlock_irqrestore(&chip->reg_lock, flags);
-	/* TODO: the line below looks like a duplicated line I added by mistake. Remove it. */
-	snd_wss_in(chip, CS4231_ALT_FEATURE_1),spin_unlock_irqrestore(&chip->reg_lock, flags);
 	return 0;
 }
 
@@ -875,7 +874,7 @@ static int snd_cs4236_put_iec958_switch(struct snd_kcontrol *kcontrol, struct sn
 	change = val != chip->image[CS4231_ALT_FEATURE_1];
 	snd_wss_out(chip, CS4231_ALT_FEATURE_1, val);
 	udelay(100);
-	dev_dbg(chip->card->dev, "set valid: ALT=0x%x\n", snd_wss_in(chip, CS4231_ALT_FEATURE_1));
+	snd_printdd("set valid: ALT=0x%x\n", snd_wss_in(chip, CS4231_ALT_FEATURE_1));
 	spin_unlock_irqrestore(&chip->reg_lock, flags);
 	snd_wss_mce_down(chip);
 	mutex_unlock(&chip->mce_mutex);
@@ -926,14 +925,12 @@ int snd_cs4236_mixer(struct snd_wss *chip)
 	if (chip->hardware == WSS_HW_CS4235 ||
 	    chip->hardware == WSS_HW_CS4239) {
 		for (idx = 0; idx < ARRAY_SIZE(snd_cs4235_controls); idx++) {
-			err = snd_ctl_add(card, snd_ctl_new1(&snd_cs4235_controls[idx], chip));
-			if (err < 0)
+			if ((err = snd_ctl_add(card, snd_ctl_new1(&snd_cs4235_controls[idx], chip))) < 0)
 				return err;
 		}
 	} else {
 		for (idx = 0; idx < ARRAY_SIZE(snd_cs4236_controls); idx++) {
-			err = snd_ctl_add(card, snd_ctl_new1(&snd_cs4236_controls[idx], chip));
-			if (err < 0)
+			if ((err = snd_ctl_add(card, snd_ctl_new1(&snd_cs4236_controls[idx], chip))) < 0)
 				return err;
 		}
 	}
@@ -956,15 +953,13 @@ int snd_cs4236_mixer(struct snd_wss *chip)
 		kcontrol = NULL;
 	}
 	for (idx = 0; idx < count; idx++, kcontrol++) {
-		err = snd_ctl_add(card, snd_ctl_new1(kcontrol, chip));
-		if (err < 0)
+		if ((err = snd_ctl_add(card, snd_ctl_new1(kcontrol, chip))) < 0)
 			return err;
 	}
 	if (chip->hardware == WSS_HW_CS4237B ||
 	    chip->hardware == WSS_HW_CS4238B) {
 		for (idx = 0; idx < ARRAY_SIZE(snd_cs4236_iec958_controls); idx++) {
-			err = snd_ctl_add(card, snd_ctl_new1(&snd_cs4236_iec958_controls[idx], chip));
-			if (err < 0)
+			if ((err = snd_ctl_add(card, snd_ctl_new1(&snd_cs4236_iec958_controls[idx], chip))) < 0)
 				return err;
 		}
 	}

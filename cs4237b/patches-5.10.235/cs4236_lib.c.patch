@@ -1,0 +1,401 @@
+--- a/sound/isa/cs423x/cs4236_lib.c	2025-03-13 07:47:45.000000000 -0400
++++ b/sound/isa/cs423x/cs4236_lib.c	2025-04-06 05:32:49.501159147 -0400
+@@ -1,70 +1,22 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+  *  Copyright (c) by Jaroslav Kysela <perex@perex.cz>
+- *  Routines for control of CS4235/4236B/4237B/4238B/4239 chips
++ *
++ *  Edited by linic@hotmail.ca.
++ *  Routines for control of CS4237B for the ThinkPad 560Z
+  *
+  *  Note:
+- *     -----
++ *  - Removed control port since my 560z doesn't expose the control device.
++ *  - Removed many hardware checks since my 560z is successfully detected as a WSS_HW_CS4237B.
++ *  - After the module has loaded, run "sudo alsactl init CS4237B" and then "alsamixer" to up the volumes.
++ *    "sudo alsactl store CS4237B" can be used to save the alsa settings including the volumes.
++ *    After a reboot, "sudo alsactl init CS4237B" and "sudo alsactl restore CS4237B" are needed for
++ *    sound to be audible.
+  *
+  *  Bugs:
+  *     -----
+  */
+ 
+-/*
+- *  Indirect control registers (CS4236B+)
+- * 
+- *  C0
+- *     D8: WSS reset (all chips)
+- *
+- *  C1 (all chips except CS4236)
+- *     D7-D5: version 
+- *     D4-D0: chip id
+- *             11101 - CS4235
+- *             01011 - CS4236B
+- *             01000 - CS4237B
+- *             01001 - CS4238B
+- *             11110 - CS4239
+- *
+- *  C2
+- *     D7-D4: 3D Space (CS4235,CS4237B,CS4238B,CS4239)
+- *     D3-D0: 3D Center (CS4237B); 3D Volume (CS4238B)
+- * 
+- *  C3
+- *     D7: 3D Enable (CS4237B)
+- *     D6: 3D Mono Enable (CS4237B)
+- *     D5: 3D Serial Output (CS4237B,CS4238B)
+- *     D4: 3D Enable (CS4235,CS4238B,CS4239)
+- *
+- *  C4
+- *     D7: consumer serial port enable (CS4237B,CS4238B)
+- *     D6: channels status block reset (CS4237B,CS4238B)
+- *     D5: user bit in sub-frame of digital audio data (CS4237B,CS4238B)
+- *     D4: validity bit in sub-frame of digital audio data (CS4237B,CS4238B)
+- * 
+- *  C5  lower channel status (digital serial data description) (CS4237B,CS4238B)
+- *     D7-D6: first two bits of category code
+- *     D5: lock
+- *     D4-D3: pre-emphasis (0 = none, 1 = 50/15us)
+- *     D2: copy/copyright (0 = copy inhibited)
+- *     D1: 0 = digital audio / 1 = non-digital audio
+- *     
+- *  C6  upper channel status (digital serial data description) (CS4237B,CS4238B)
+- *     D7-D6: sample frequency (0 = 44.1kHz)
+- *     D5: generation status (0 = no indication, 1 = original/commercially precaptureed data)
+- *     D4-D0: category code (upper bits)
+- *
+- *  C7  reserved (must write 0)
+- *
+- *  C8  wavetable control
+- *     D7: volume control interrupt enable (CS4235,CS4239)
+- *     D6: hardware volume control format (CS4235,CS4239)
+- *     D3: wavetable serial port enable (all chips)
+- *     D2: DSP serial port switch (all chips)
+- *     D1: disable MCLK (all chips)
+- *     D0: force BRESET low (all chips)
+- *
+- */
+-
+ #include <linux/io.h>
+ #include <linux/delay.h>
+ #include <linux/init.h>
+@@ -76,10 +28,6 @@
+ #include <sound/initval.h>
+ #include <sound/tlv.h>
+ 
+-/*
+- *
+- */
+-
+ static const unsigned char snd_cs4236_ext_map[18] = {
+ 	/* CS4236_LEFT_LINE */		0xff,
+ 	/* CS4236_RIGHT_LINE */		0xff,
+@@ -101,21 +49,34 @@
+ 	/* CS4236_RIGHT_WAVE */		0xbf
+ };
+ 
+-/*
+- *
+- */
+-
+-static void snd_cs4236_ctrl_out(struct snd_wss *chip,
+-				unsigned char reg, unsigned char val)
+-{
+-	outb(reg, chip->cport + 3);
+-	outb(chip->cimage[reg] = val, chip->cport + 4);
+-}
+-
+-static unsigned char snd_cs4236_ctrl_in(struct snd_wss *chip, unsigned char reg)
+-{
+-	outb(reg, chip->cport + 3);
+-	return inb(chip->cport + 4);
++/* Read the indirect registers one by one. */
++static void decode_version(struct snd_card *card, unsigned char value) {
++	unsigned char chip_id_mask = 0b00011111;//01000  CS4237B
++	unsigned char cs4237b_chip_id = 0b00001000;
++	unsigned char read_chip_id = 0;
++	unsigned char read_version = 0;
++	unsigned char version_mask = 0b11100000;
++	unsigned char revision_a = 0b10000000;
++	unsigned char revision_b = 0b10100000;
++	unsigned char revision_cd = 0b11000000;
++	unsigned char revision_e = 0b11100000;
++	snd_printdd("Version=0x%x\n", read_version);
++	read_chip_id = value & chip_id_mask;
++	read_version = value & version_mask;
++	if (read_chip_id == cs4237b_chip_id)
++		snd_printdd("Chip id matches CS4237B\n");
++	else
++		snd_printdd("Chip id unknonwn\n");
++	if (read_version == revision_a)
++		snd_printdd("Version matches revision a\n");
++	else if (read_version == revision_b)
++		snd_printdd("Version matches revision b\n");
++	else if (read_version == revision_cd)
++		snd_printdd("Version matches revision c/d\n");
++	else if (read_version == revision_e)
++		snd_printdd("Version matches revision e\n");
++	else
++		snd_printdd("Version has unknown revision\n");
+ }
+ 
+ /*
+@@ -201,7 +162,6 @@
+ 	spin_unlock_irqrestore(&chip->reg_lock, flags);
+ }
+ 
+-#ifdef CONFIG_PM
+ 
+ static void snd_cs4236_suspend(struct snd_wss *chip)
+ {
+@@ -213,8 +173,6 @@
+ 		chip->image[reg] = snd_wss_in(chip, reg);
+ 	for (reg = 0; reg < 18; reg++)
+ 		chip->eimage[reg] = snd_cs4236_ext_in(chip, CS4236_I23VAL(reg));
+-	for (reg = 2; reg < 9; reg++)
+-		chip->cimage[reg] = snd_cs4236_ctrl_in(chip, reg);
+ 	spin_unlock_irqrestore(&chip->reg_lock, flags);
+ }
+ 
+@@ -239,106 +197,76 @@
+ 	}
+ 	for (reg = 0; reg < 18; reg++)
+ 		snd_cs4236_ext_out(chip, CS4236_I23VAL(reg), chip->eimage[reg]);
+-	for (reg = 2; reg < 9; reg++) {
+-		switch (reg) {
+-		case 7:
+-			break;
+-		default:
+-			snd_cs4236_ctrl_out(chip, reg, chip->cimage[reg]);
+-		}
+-	}
+ 	spin_unlock_irqrestore(&chip->reg_lock, flags);
+ 	snd_wss_mce_down(chip);
+ }
+ 
+-#endif /* CONFIG_PM */
+-/*
+- * This function does no fail if the chip is not CS4236B or compatible.
+- * It just an equivalent to the snd_wss_create() then.
++/* Modified the snd_cs4236_create to work without control port/device
+  */
+ int snd_cs4236_create(struct snd_card *card,
+ 		      unsigned long port,
+-		      unsigned long cport,
+ 		      int irq, int dma1, int dma2,
+ 		      unsigned short hardware,
+ 		      unsigned short hwshare,
+ 		      struct snd_wss **rchip)
+ {
+ 	struct snd_wss *chip;
+-	unsigned char ver1, ver2;
++	unsigned char version;
+ 	unsigned int reg;
+ 	int err;
+ 
+ 	*rchip = NULL;
+ 	if (hardware == WSS_HW_DETECT)
+ 		hardware = WSS_HW_DETECT3;
+-
+-	err = snd_wss_create(card, port, cport,
+-			     irq, dma1, dma2, hardware, hwshare, &chip);
++	/* I removed the control port. I probably could have set it to -1 instead, but
++	 * I didn't test setting it to -1 only and using "alsactl init CS4237B" and
++	 * alsamixer to set the volumes to 100.  */
++	err = snd_wss_create(card, port, irq, dma1, dma2, hardware, hwshare, &chip);
+ 	if (err < 0)
+ 		return err;
+ 
+ 	if ((chip->hardware & WSS_HW_CS4236B_MASK) == 0) {
+-		snd_printd("chip is not CS4236+, hardware=0x%x\n",
+-			   chip->hardware);
++		snd_printd("chip is not CS4236+, hardware=0x%x\n", chip->hardware);
+ 		*rchip = chip;
+ 		return 0;
+ 	}
+-#if 0
+-	{
+-		int idx;
+-		for (idx = 0; idx < 8; idx++)
+-			snd_printk(KERN_DEBUG "CD%i = 0x%x\n",
+-				   idx, inb(chip->cport + idx));
+-		for (idx = 0; idx < 9; idx++)
+-			snd_printk(KERN_DEBUG "C%i = 0x%x\n",
+-				   idx, snd_cs4236_ctrl_in(chip, idx));
+-	}
+-#endif
+-	if (cport < 0x100 || cport == SNDRV_AUTO_PORT) {
+-		snd_printk(KERN_ERR "please, specify control port "
+-			   "for CS4236+ chips\n");
+-		snd_device_free(card, chip);
+-		return -ENODEV;
+-	}
+-	ver1 = snd_cs4236_ctrl_in(chip, 1);
+-	ver2 = snd_cs4236_ext_in(chip, CS4236_VERSION);
+-	snd_printdd("CS4236: [0x%lx] C1 (version) = 0x%x, ext = 0x%x\n",
+-			cport, ver1, ver2);
+-	if (ver1 != ver2) {
+-		snd_printk(KERN_ERR "CS4236+ chip detected, but "
+-			   "control port 0x%lx is not valid\n", cport);
+-		snd_device_free(card, chip);
+-		return -ENODEV;
+-	}
+-	snd_cs4236_ctrl_out(chip, 0, 0x00);
+-	snd_cs4236_ctrl_out(chip, 2, 0xff);
+-	snd_cs4236_ctrl_out(chip, 3, 0x00);
+-	snd_cs4236_ctrl_out(chip, 4, 0x80);
+-	reg = ((IEC958_AES1_CON_PCM_CODER & 3) << 6) |
+-	      IEC958_AES0_CON_EMPHASIS_NONE;
+-	snd_cs4236_ctrl_out(chip, 5, reg);
+-	snd_cs4236_ctrl_out(chip, 6, IEC958_AES1_CON_PCM_CODER >> 2);
+-	snd_cs4236_ctrl_out(chip, 7, 0x00);
+-	/*
+-	 * 0x8c for C8 is valid for Turtle Beach Malibu - the IEC-958
+-	 * output is working with this setup, other hardware should
+-	 * have different signal paths and this value should be
+-	 * selectable in the future
+-	 */
+-	snd_cs4236_ctrl_out(chip, 8, 0x8c);
++
++	/* According to the CS4237B documentation:
++	 * Version / Chip ID (C1)
++	 * Default = 11001000
++	 * D7 D6 D5 D4 D3 D2 D1 D0
++	 * V2 V1 V0 CID4 CID3 CID2 CID1 CID0
++	 * CID4-CID0
++	 * Chip Identification. Distinguishes
++	 * between this chip and other codec
++	 * chips that support this register set.
++	 * This register is identical to the WSS
++	 * X25 register.
++	 * 01000 - CS4237B
++	 * V2-V0
++	 * Version number. As enhancements
++	 * are made, the version number is
++	 * changed so software can distinguish
++	 * between the different versions of the
++	 * same chip.
++	 * 100 - Revision A
++	 * 101 - Revision B
++	 * 110 - Revision C/D
++	 * 111 - Revision E
++	 * */
++	version = snd_cs4236_ext_in(chip, CS4236_VERSION);
++	decode_version(card, version);
++
++	reg = ((IEC958_AES1_CON_PCM_CODER & 3) << 6) | IEC958_AES0_CON_EMPHASIS_NONE;
+ 	chip->rate_constraint = snd_cs4236_xrate;
+ 	chip->set_playback_format = snd_cs4236_playback_format;
+ 	chip->set_capture_format = snd_cs4236_capture_format;
+-#ifdef CONFIG_PM
+ 	chip->suspend = snd_cs4236_suspend;
+ 	chip->resume = snd_cs4236_resume;
+-#endif
+ 
+ 	/* initialize extended registers */
+ 	for (reg = 0; reg < sizeof(snd_cs4236_ext_map); reg++)
+-		snd_cs4236_ext_out(chip, CS4236_I23VAL(reg),
+-				   snd_cs4236_ext_map[reg]);
++		snd_cs4236_ext_out(chip, CS4236_I23VAL(reg), snd_cs4236_ext_map[reg]);
+ 
+ 	/* initialize compatible but more featured registers */
+ 	snd_wss_out(chip, CS4231_LEFT_INPUT, 0x40);
+@@ -448,44 +376,34 @@
+   .get = snd_cs4236_get_singlec, .put = snd_cs4236_put_singlec, \
+   .private_value = reg | (shift << 8) | (mask << 16) | (invert << 24) }
+ 
++/* I think the c at the end of this method name refers to the control device. Since
++ * there is no control device on the 560z, I believe this is not needed and could be removed. */
+ static int snd_cs4236_get_singlec(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_wss *chip = snd_kcontrol_chip(kcontrol);
+-	unsigned long flags;
+-	int reg = kcontrol->private_value & 0xff;
+-	int shift = (kcontrol->private_value >> 8) & 0xff;
+ 	int mask = (kcontrol->private_value >> 16) & 0xff;
+ 	int invert = (kcontrol->private_value >> 24) & 0xff;
+-	
+-	spin_lock_irqsave(&chip->reg_lock, flags);
+-	ucontrol->value.integer.value[0] = (chip->cimage[reg] >> shift) & mask;
+-	spin_unlock_irqrestore(&chip->reg_lock, flags);
++	/* I removed code which was using cimage since cimage was removed since there's no control device on the 560z */
+ 	if (invert)
+ 		ucontrol->value.integer.value[0] = mask - ucontrol->value.integer.value[0];
+ 	return 0;
+ }
+ 
++/* I think the c at the end of this method name refers to the control device. Since
++ * there is no control device on the 560z, I believe this is not needed and could be removed. */
+ static int snd_cs4236_put_singlec(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_wss *chip = snd_kcontrol_chip(kcontrol);
+-	unsigned long flags;
+-	int reg = kcontrol->private_value & 0xff;
+ 	int shift = (kcontrol->private_value >> 8) & 0xff;
+ 	int mask = (kcontrol->private_value >> 16) & 0xff;
+ 	int invert = (kcontrol->private_value >> 24) & 0xff;
+-	int change;
+ 	unsigned short val;
+ 	
++	/* I removed code which was using cimage since cimage was removed since there's no control device on the 560z */
+ 	val = (ucontrol->value.integer.value[0] & mask);
+ 	if (invert)
+ 		val = mask - val;
+ 	val <<= shift;
+-	spin_lock_irqsave(&chip->reg_lock, flags);
+-	val = (chip->cimage[reg] & ~(mask << shift)) | val;
+-	change = val != chip->cimage[reg];
+-	snd_cs4236_ctrl_out(chip, reg, val);
+-	spin_unlock_irqrestore(&chip->reg_lock, flags);
+-	return change;
++	/* Always returning 1 since there's no cimage anymore and no way to know if there was a change or not. */
++	return 1;
+ }
+ 
+ #define CS4236_DOUBLE(xname, xindex, left_reg, right_reg, shift_left, shift_right, mask, invert) \
+@@ -935,16 +853,7 @@
+ 	
+ 	spin_lock_irqsave(&chip->reg_lock, flags);
+ 	ucontrol->value.integer.value[0] = chip->image[CS4231_ALT_FEATURE_1] & 0x02 ? 1 : 0;
+-#if 0
+-	printk(KERN_DEBUG "get valid: ALT = 0x%x, C3 = 0x%x, C4 = 0x%x, "
+-	       "C5 = 0x%x, C6 = 0x%x, C8 = 0x%x\n",
+-			snd_wss_in(chip, CS4231_ALT_FEATURE_1),
+-			snd_cs4236_ctrl_in(chip, 3),
+-			snd_cs4236_ctrl_in(chip, 4),
+-			snd_cs4236_ctrl_in(chip, 5),
+-			snd_cs4236_ctrl_in(chip, 6),
+-			snd_cs4236_ctrl_in(chip, 8));
+-#endif
++	snd_printdd("get valid: ALT=0x%x\n", snd_wss_in(chip, CS4231_ALT_FEATURE_1));
+ 	spin_unlock_irqrestore(&chip->reg_lock, flags);
+ 	return 0;
+ }
+@@ -964,25 +873,11 @@
+ 	val = (chip->image[CS4231_ALT_FEATURE_1] & ~0x0e) | (0<<2) | (enable << 1);
+ 	change = val != chip->image[CS4231_ALT_FEATURE_1];
+ 	snd_wss_out(chip, CS4231_ALT_FEATURE_1, val);
+-	val = snd_cs4236_ctrl_in(chip, 4) | 0xc0;
+-	snd_cs4236_ctrl_out(chip, 4, val);
+ 	udelay(100);
+-	val &= ~0x40;
+-	snd_cs4236_ctrl_out(chip, 4, val);
++	snd_printdd("set valid: ALT=0x%x\n", snd_wss_in(chip, CS4231_ALT_FEATURE_1));
+ 	spin_unlock_irqrestore(&chip->reg_lock, flags);
+ 	snd_wss_mce_down(chip);
+ 	mutex_unlock(&chip->mce_mutex);
+-
+-#if 0
+-	printk(KERN_DEBUG "set valid: ALT = 0x%x, C3 = 0x%x, C4 = 0x%x, "
+-	       "C5 = 0x%x, C6 = 0x%x, C8 = 0x%x\n",
+-			snd_wss_in(chip, CS4231_ALT_FEATURE_1),
+-			snd_cs4236_ctrl_in(chip, 3),
+-			snd_cs4236_ctrl_in(chip, 4),
+-			snd_cs4236_ctrl_in(chip, 5),
+-			snd_cs4236_ctrl_in(chip, 6),
+-			snd_cs4236_ctrl_in(chip, 8));
+-#endif
+ 	return change;
+ }
+ 

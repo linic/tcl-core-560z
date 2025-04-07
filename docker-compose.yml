@@ -4,15 +4,15 @@ services:
       context: .
       args:
         - CORE_GZ=rootfs.gz
-        - ITERATION_NUMBER=7
-        - KERNEL_BRANCH=v6.x
+        - ITERATION_NUMBER=6
+        - KERNEL_BRANCH=v5.x
         - KERNEL_SUFFIX=tinycore-560z
-        - KERNEL_VERSION=6.13.7
+        - KERNEL_VERSION=5.10.235
         - TCL_MAJOR_VERSION_NUMBER=16
-        - TCL_RELEASE_TYPE=release_candidates
+        - TCL_RELEASE_TYPE=release
         - TCL_VERSION=16.x
       dockerfile: Dockerfile
       tags:
-        - linichotmailca/tcl-core-560z:6.13.7.16.7
+        - linichotmailca/tcl-core-560z:5.10.235.16.6
         - linichotmailca/tcl-core-560z:latest
 
