@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright (c) by Jaroslav Kysela <perex@perex.cz>
  *
@@ -15,6 +14,21 @@
  *
  *  Bugs:
  *     -----
+ *
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program; if not, write to the Free Software
+ *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
  */
 
 #include <linux/io.h>
@@ -28,7 +42,7 @@
 #include <sound/initval.h>
 #include <sound/tlv.h>
 
-static const unsigned char snd_cs4236_ext_map[18] = {
+static unsigned char snd_cs4236_ext_map[18] = {
 	/* CS4236_LEFT_LINE */		0xff,
 	/* CS4236_RIGHT_LINE */		0xff,
 	/* CS4236_LEFT_MIC */		0xdf,
@@ -60,23 +74,23 @@ static void decode_version(struct snd_card *card, unsigned char value) {
 	unsigned char revision_b = 0b10100000;
 	unsigned char revision_cd = 0b11000000;
 	unsigned char revision_e = 0b11100000;
-	dev_dbg(card->dev, "Version=0x%x\n", read_version);
+	snd_printdd("Version=0x%x\n", read_version);
 	read_chip_id = value & chip_id_mask;
 	read_version = value & version_mask;
 	if (read_chip_id == cs4237b_chip_id)
-		dev_dbg(card->dev, "Chip id matches CS4237B\n");
+		snd_printdd("Chip id matches CS4237B\n");
 	else
-		dev_dbg(card->dev, "Chip id unknonwn\n");
+		snd_printdd("Chip id unknonwn\n");
 	if (read_version == revision_a)
-		dev_dbg(card->dev, "Version matches revision a\n");
+		snd_printdd("Version matches revision a\n");
 	else if (read_version == revision_b)
-		dev_dbg(card->dev, "Version matches revision b\n");
+		snd_printdd("Version matches revision b\n");
 	else if (read_version == revision_cd)
-		dev_dbg(card->dev, "Version matches revision c/d\n");
+		snd_printdd("Version matches revision c/d\n");
 	else if (read_version == revision_e)
-		dev_dbg(card->dev, "Version matches revision e\n");
+		snd_printdd("Version matches revision e\n");
 	else
-		dev_dbg(card->dev, "Version has unknown revision\n");
+		snd_printdd("Version has unknown revision\n");
 }
 
 /*
@@ -85,7 +99,7 @@ static void decode_version(struct snd_card *card, unsigned char value) {
 
 #define CLOCKS 8
 
-static const struct snd_ratnum clocks[CLOCKS] = {
+static struct snd_ratnum clocks[CLOCKS] = {
 	{ .num = 16934400, .den_min = 353, .den_max = 353, .den_step = 1 },
 	{ .num = 16934400, .den_min = 529, .den_max = 529, .den_step = 1 },
 	{ .num = 16934400, .den_min = 617, .den_max = 617, .den_step = 1 },
@@ -96,7 +110,7 @@ static const struct snd_ratnum clocks[CLOCKS] = {
 	{ .num = 16934400/16, .den_min = 21, .den_max = 192, .den_step = 1 }
 };
 
-static const struct snd_pcm_hw_constraint_ratnums hw_constraints_clocks = {
+static struct snd_pcm_hw_constraint_ratnums hw_constraints_clocks = {
 	.nrats = CLOCKS,
 	.rats = clocks,
 };
@@ -203,7 +217,8 @@ static void snd_cs4236_resume(struct snd_wss *chip)
 
 /* Modified the snd_cs4236_create to work without control port/device
  */
-int snd_cs4236_create(struct snd_card *card, unsigned long port,
+int snd_cs4236_create(struct snd_card *card,
+		      unsigned long port,
 		      int irq, int dma1, int dma2,
 		      unsigned short hardware,
 		      unsigned short hwshare,
@@ -220,12 +235,14 @@ int snd_cs4236_create(struct snd_card *card, unsigned long port,
 	/* I removed the control port. I probably could have set it to -1 instead, but
 	 * I didn't test setting it to -1 only and using "alsactl init CS4237B" and
 	 * alsamixer to set the volumes to 100.  */
-	err = snd_wss_create(card, port, irq, dma1, dma2, hardware, hwshare, &chip);
+	err = snd_wss_create(card, port,
+			     irq, dma1, dma2, hardware, hwshare, &chip);
 	if (err < 0)
 		return err;
 
 	if ((chip->hardware & WSS_HW_CS4236B_MASK) == 0) {
-		dev_dbg(card->dev, "chip is not CS4236+, hardware=0x%x\n", chip->hardware);
+		snd_printd("chip is not CS4236+, hardware=0x%x\n",
+			   chip->hardware);
 		*rchip = chip;
 		return 0;
 	}
@@ -256,7 +273,8 @@ int snd_cs4236_create(struct snd_card *card, unsigned long port,
 	version = snd_cs4236_ext_in(chip, CS4236_VERSION);
 	decode_version(card, version);
 
-	reg = ((IEC958_AES1_CON_PCM_CODER & 3) << 6) | IEC958_AES0_CON_EMPHASIS_NONE;
+	reg = ((IEC958_AES1_CON_PCM_CODER & 3) << 6) |
+	      IEC958_AES0_CON_EMPHASIS_NONE;
 	chip->rate_constraint = snd_cs4236_xrate;
 	chip->set_playback_format = snd_cs4236_playback_format;
 	chip->set_capture_format = snd_cs4236_capture_format;
@@ -265,7 +283,8 @@ int snd_cs4236_create(struct snd_card *card, unsigned long port,
 
 	/* initialize extended registers */
 	for (reg = 0; reg < sizeof(snd_cs4236_ext_map); reg++)
-		snd_cs4236_ext_out(chip, CS4236_I23VAL(reg), snd_cs4236_ext_map[reg]);
+		snd_cs4236_ext_out(chip, CS4236_I23VAL(reg),
+				   snd_cs4236_ext_map[reg]);
 
 	/* initialize compatible but more featured registers */
 	snd_wss_out(chip, CS4231_LEFT_INPUT, 0x40);
@@ -675,7 +694,7 @@ static const DECLARE_TLV_DB_SCALE(db_scale_4bit, -4500, 300, 0);
 static const DECLARE_TLV_DB_SCALE(db_scale_2bit, -1800, 600, 0);
 static const DECLARE_TLV_DB_SCALE(db_scale_rec_gain, 0, 150, 0);
 
-static const struct snd_kcontrol_new snd_cs4236_controls[] = {
+static struct snd_kcontrol_new snd_cs4236_controls[] = {
 
 CS4236_DOUBLE("Master Digital Playback Switch", 0,
 		CS4236_LEFT_MASTER, CS4236_RIGHT_MASTER, 7, 7, 1, 1),
@@ -770,7 +789,7 @@ CS4236_DOUBLE1_TLV("Loopback Digital Playback Volume", 0,
 static const DECLARE_TLV_DB_SCALE(db_scale_5bit_6db_max, -5600, 200, 0);
 static const DECLARE_TLV_DB_SCALE(db_scale_2bit_16db_max, -2400, 800, 0);
 
-static const struct snd_kcontrol_new snd_cs4235_controls[] = {
+static struct snd_kcontrol_new snd_cs4235_controls[] = {
 
 WSS_DOUBLE("Master Playback Switch", 0,
 		CS4235_LEFT_MASTER, CS4235_RIGHT_MASTER, 7, 7, 1, 1),
@@ -852,7 +871,7 @@ static int snd_cs4236_get_iec958_switch(struct snd_kcontrol *kcontrol, struct sn
 	
 	spin_lock_irqsave(&chip->reg_lock, flags);
 	ucontrol->value.integer.value[0] = chip->image[CS4231_ALT_FEATURE_1] & 0x02 ? 1 : 0;
-	dev_dbg(chip->card->dev, "get valid: ALT=0x%x\n", snd_wss_in(chip, CS4231_ALT_FEATURE_1));
+	snd_printdd("get valid: ALT=0x%x\n", snd_wss_in(chip, CS4231_ALT_FEATURE_1));
 	spin_unlock_irqrestore(&chip->reg_lock, flags);
 	return 0;
 }
@@ -873,14 +892,14 @@ static int snd_cs4236_put_iec958_switch(struct snd_kcontrol *kcontrol, struct sn
 	change = val != chip->image[CS4231_ALT_FEATURE_1];
 	snd_wss_out(chip, CS4231_ALT_FEATURE_1, val);
 	udelay(100);
-	dev_dbg(chip->card->dev, "set valid: ALT=0x%x\n", snd_wss_in(chip, CS4231_ALT_FEATURE_1));
+	snd_printdd("set valid: ALT=0x%x\n", snd_wss_in(chip, CS4231_ALT_FEATURE_1));
 	spin_unlock_irqrestore(&chip->reg_lock, flags);
 	snd_wss_mce_down(chip);
 	mutex_unlock(&chip->mce_mutex);
 	return change;
 }
 
-static const struct snd_kcontrol_new snd_cs4236_iec958_controls[] = {
+static struct snd_kcontrol_new snd_cs4236_iec958_controls[] = {
 CS4236_IEC958_ENABLE("IEC958 Output Enable", 0),
 CS4236_SINGLEC("IEC958 Output Validity", 0, 4, 4, 1, 0),
 CS4236_SINGLEC("IEC958 Output User", 0, 4, 5, 1, 0),
@@ -889,12 +908,12 @@ CS4236_SINGLEC("IEC958 Output Channel Status Low", 0, 5, 1, 127, 0),
 CS4236_SINGLEC("IEC958 Output Channel Status High", 0, 6, 0, 255, 0)
 };
 
-static const struct snd_kcontrol_new snd_cs4236_3d_controls_cs4235[] = {
+static struct snd_kcontrol_new snd_cs4236_3d_controls_cs4235[] = {
 CS4236_SINGLEC("3D Control - Switch", 0, 3, 4, 1, 0),
 CS4236_SINGLEC("3D Control - Space", 0, 2, 4, 15, 1)
 };
 
-static const struct snd_kcontrol_new snd_cs4236_3d_controls_cs4237[] = {
+static struct snd_kcontrol_new snd_cs4236_3d_controls_cs4237[] = {
 CS4236_SINGLEC("3D Control - Switch", 0, 3, 7, 1, 0),
 CS4236_SINGLEC("3D Control - Space", 0, 2, 4, 15, 1),
 CS4236_SINGLEC("3D Control - Center", 0, 2, 0, 15, 1),
@@ -902,7 +921,7 @@ CS4236_SINGLEC("3D Control - Mono", 0, 3, 6, 1, 0),
 CS4236_SINGLEC("3D Control - IEC958", 0, 3, 5, 1, 0)
 };
 
-static const struct snd_kcontrol_new snd_cs4236_3d_controls_cs4238[] = {
+static struct snd_kcontrol_new snd_cs4236_3d_controls_cs4238[] = {
 CS4236_SINGLEC("3D Control - Switch", 0, 3, 4, 1, 0),
 CS4236_SINGLEC("3D Control - Space", 0, 2, 4, 15, 1),
 CS4236_SINGLEC("3D Control - Volume", 0, 2, 0, 15, 1),
@@ -914,7 +933,7 @@ int snd_cs4236_mixer(struct snd_wss *chip)
 	struct snd_card *card;
 	unsigned int idx, count;
 	int err;
-	const struct snd_kcontrol_new *kcontrol;
+	struct snd_kcontrol_new *kcontrol;
 
 	if (snd_BUG_ON(!chip || !chip->card))
 		return -EINVAL;
@@ -924,14 +943,12 @@ int snd_cs4236_mixer(struct snd_wss *chip)
 	if (chip->hardware == WSS_HW_CS4235 ||
 	    chip->hardware == WSS_HW_CS4239) {
 		for (idx = 0; idx < ARRAY_SIZE(snd_cs4235_controls); idx++) {
-			err = snd_ctl_add(card, snd_ctl_new1(&snd_cs4235_controls[idx], chip));
-			if (err < 0)
+			if ((err = snd_ctl_add(card, snd_ctl_new1(&snd_cs4235_controls[idx], chip))) < 0)
 				return err;
 		}
 	} else {
 		for (idx = 0; idx < ARRAY_SIZE(snd_cs4236_controls); idx++) {
-			err = snd_ctl_add(card, snd_ctl_new1(&snd_cs4236_controls[idx], chip));
-			if (err < 0)
+			if ((err = snd_ctl_add(card, snd_ctl_new1(&snd_cs4236_controls[idx], chip))) < 0)
 				return err;
 		}
 	}
@@ -954,15 +971,13 @@ int snd_cs4236_mixer(struct snd_wss *chip)
 		kcontrol = NULL;
 	}
 	for (idx = 0; idx < count; idx++, kcontrol++) {
-		err = snd_ctl_add(card, snd_ctl_new1(kcontrol, chip));
-		if (err < 0)
+		if ((err = snd_ctl_add(card, snd_ctl_new1(kcontrol, chip))) < 0)
 			return err;
 	}
 	if (chip->hardware == WSS_HW_CS4237B ||
 	    chip->hardware == WSS_HW_CS4238B) {
 		for (idx = 0; idx < ARRAY_SIZE(snd_cs4236_iec958_controls); idx++) {
-			err = snd_ctl_add(card, snd_ctl_new1(&snd_cs4236_iec958_controls[idx], chip));
-			if (err < 0)
+			if ((err = snd_ctl_add(card, snd_ctl_new1(&snd_cs4236_iec958_controls[idx], chip))) < 0)
 				return err;
 		}
 	}

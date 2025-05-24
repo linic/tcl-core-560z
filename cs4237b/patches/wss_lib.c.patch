@@ -1,5 +1,5 @@
 --- a/sound/isa/wss/wss_lib.c	2025-01-23 11:23:05.000000000 -0500
-+++ b/sound/isa/wss/wss_lib.c	2025-03-31 07:22:14.793100040 -0400
++++ b/source/sound/isa/wss/wss_lib.c	2025-04-20 20:29:04.186440554 -0400
 @@ -1,13 +1,18 @@
  // SPDX-License-Identifier: GPL-2.0-or-later
  /*
@@ -315,9 +315,9 @@
 +	return res;
  }
 -EXPORT_SYMBOL(snd_cs4236_ext_in);
--
--#if 0
  
+-#if 0
+-
 -static void snd_wss_debug(struct snd_wss *chip)
 -{
 -	dev_dbg(chip->card->dev,
@@ -929,7 +929,7 @@
  	mutex_lock(&chip->open_mutex);
 -	if ((chip->mode & mode) ||
 -	    ((chip->mode & WSS_MODE_OPEN) && chip->single_dma)) {
-+	/* Trying to open twich so returning an error? */
++	/* Trying to open twice so returning an error? */
 +	if (chip->mode & mode) {
  		mutex_unlock(&chip->open_mutex);
  		return -EAGAIN;
@@ -1205,7 +1205,7 @@
  static int snd_wss_probe(struct snd_wss *chip)
  {
  	unsigned long flags;
-@@ -1239,190 +1142,125 @@
+@@ -1239,190 +1142,131 @@
  	unsigned char *ptr;
  	unsigned int hw;
  
@@ -1292,7 +1292,7 @@
 +	dev_dbg(chip->card->dev, "CS4231: VERSION (I25) = 0x%x\n", rev);
 +	if (rev != 0x03) {
 +		dev_err(chip->card->dev, "not the 560z and not the CS4237B because version 0x%x\n", rev);
-+		return -ENODEV;		/* unknown CS4231 chip? */
++		return -ENODEV;
 +	}
 +	mb();
 +
@@ -1331,10 +1331,16 @@
 +				break;
 +			default:
 +				dev_err(chip->card->dev, "unknown CS4237B chip (enhanced version = 0x%x)\n", id);
++				/* I added this after porting the code changes to 4.4.302 since it would be best to
++				 * stop the probe instead of continuing with a result that might be broken. */
++				return -ENODEV;
  		}
  	}
 +	else {
 +		dev_err(chip->card->dev, "unknown CS4236/CS423xB chip (enhanced version = 0x%x)\n", id);
++		/* I added this after porting the code changes to 4.4.302 since it would be best to
++		 * stop the probe instead of continuing with a result that might be broken. */
++		return -ENODEV;
 +	}
 +
  	spin_lock_irqsave(&chip->reg_lock, flags);
@@ -1493,7 +1499,7 @@
  static const struct snd_pcm_hardware snd_wss_playback =
  {
  	.info =			(SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_INTERLEAVED |
-@@ -1476,20 +1314,6 @@
+@@ -1476,20 +1320,6 @@
  
  	runtime->hw = snd_wss_playback;
  
@@ -1514,7 +1520,7 @@
  	snd_pcm_limit_isa_dma_size(chip->dma1, &runtime->hw.buffer_bytes_max);
  	snd_pcm_limit_isa_dma_size(chip->dma1, &runtime->hw.period_bytes_max);
  
-@@ -1519,18 +1343,6 @@
+@@ -1519,18 +1349,6 @@
  
  	runtime->hw = snd_wss_capture;
  
@@ -1533,7 +1539,7 @@
  	snd_pcm_limit_isa_dma_size(chip->dma2, &runtime->hw.buffer_bytes_max);
  	snd_pcm_limit_isa_dma_size(chip->dma2, &runtime->hw.period_bytes_max);
  
-@@ -1570,28 +1382,6 @@
+@@ -1570,28 +1388,6 @@
  	return 0;
  }
  
@@ -1562,7 +1568,7 @@
  /* lowlevel suspend callback for CS4231 */
  static void snd_wss_suspend(struct snd_wss *chip)
  {
-@@ -1602,8 +1392,6 @@
+@@ -1602,8 +1398,6 @@
  	for (reg = 0; reg < 32; reg++)
  		chip->image[reg] = snd_wss_in(chip, reg);
  	spin_unlock_irqrestore(&chip->reg_lock, flags);
@@ -1571,7 +1577,7 @@
  }
  
  /* lowlevel resume callback for CS4231 */
-@@ -1611,10 +1399,8 @@
+@@ -1611,10 +1405,8 @@
  {
  	int reg;
  	unsigned long flags;
@@ -1583,7 +1589,7 @@
  	snd_wss_mce_up(chip);
  	spin_lock_irqsave(&chip->reg_lock, flags);
  	for (reg = 0; reg < 32; reg++) {
-@@ -1626,14 +1412,8 @@
+@@ -1626,36 +1418,9 @@
  			break;
  		}
  	}
@@ -1595,29 +1601,32 @@
 -#if 1
  	snd_wss_mce_down(chip);
 -#else
- 	/* The following is a workaround to avoid freeze after resume on TP600E.
- 	   This is the first half of copy of snd_wss_mce_down(), but doesn't
- 	   include rescheduling.  -- iwai
-@@ -1645,17 +1425,13 @@
- 	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | (timeout & 0x1f));
- 	spin_unlock_irqrestore(&chip->reg_lock, flags);
- 	if (timeout == 0x80)
+-	/* The following is a workaround to avoid freeze after resume on TP600E.
+-	   This is the first half of copy of snd_wss_mce_down(), but doesn't
+-	   include rescheduling.  -- iwai
+-	   */
+-	snd_wss_busy_wait(chip);
+-	spin_lock_irqsave(&chip->reg_lock, flags);
+-	chip->mce_bit &= ~CS4231_MCE;
+-	timeout = wss_inb(chip, CS4231P(REGSEL));
+-	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | (timeout & 0x1f));
+-	spin_unlock_irqrestore(&chip->reg_lock, flags);
+-	if (timeout == 0x80)
 -		dev_err(chip->card->dev
 -			"down [0x%lx]: serious init problem - codec still busy\n",
 -			chip->port);
-+		dev_dbg(chip->card->dev, "down [0x%lx]: serious init problem - codec still busy\n", chip->port);
- 	if ((timeout & CS4231_MCE) == 0 ||
- 	    !(chip->hardware & (WSS_HW_CS4231_MASK | WSS_HW_CS4232_MASK))) {
- 		return;
- 	}
- 	snd_wss_busy_wait(chip);
+-	if ((timeout & CS4231_MCE) == 0 ||
+-	    !(chip->hardware & (WSS_HW_CS4231_MASK | WSS_HW_CS4232_MASK))) {
+-		return;
+-	}
+-	snd_wss_busy_wait(chip);
 -#endif
  }
 -#endif /* CONFIG_PM */
  
  const char *snd_wss_chip_id(struct snd_wss *chip)
  {
-@@ -1738,13 +1514,9 @@
+@@ -1738,13 +1503,9 @@
  	return 0;
  }
  
@@ -1634,7 +1643,7 @@
  {
  	struct snd_wss *chip;
  	int err;
-@@ -1759,69 +1531,41 @@
+@@ -1759,69 +1520,41 @@
  
  	chip->res_port = devm_request_region(card->dev, port, 4, "WSS");
  	if (!chip->res_port) {
@@ -1711,7 +1720,7 @@
  
  	*rchip = chip;
  	return 0;
-@@ -1861,8 +1605,6 @@
+@@ -1861,8 +1594,6 @@
  	/* global setup */
  	pcm->private_data = chip;
  	pcm->info_flags = 0;

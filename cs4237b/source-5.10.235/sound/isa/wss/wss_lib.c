@@ -1180,7 +1180,7 @@ static int snd_wss_probe(struct snd_wss *chip)
 	snd_printdd("CS4231: VERSION (I25) = 0x%x\n", rev);
 	if (rev != 0x03) {
 		snd_printk(KERN_ERR "not the 560z and not the CS4237B because version 0x%x\n", rev);
-			return -ENODEV;		/* unknown CS4231 chip? */
+		return -ENODEV;
 	}
 	mb();
 	/* CS4236_VERSION is 0x9c which is 0b1001 1100
@@ -1217,11 +1217,18 @@ static int snd_wss_probe(struct snd_wss *chip)
 			case 7:
 				break;
 			default:
-				snd_printk(KERN_ERR "unknown CS4237B chip (enhanced version = 0x%x)\n", id);
+				/* I made this an error because I know the 560z only supports these revisions. */
+				snd_printk(KERN_ERR "unknown CS4237B chip (enhanced version = 0x%x)\n", rev >> 5);
+				/* I added this after porting the code changes to 4.4.302 since it would be best to
+				 * stop the probe instead of continuing with a result that might be broken. */
+				return -ENODEV;
 		}
 	}
 	else {
-		snd_printk(KERN_ERR "unknown CS4236/CS423xB chip (enhanced version = 0x%x)\n", id);
+		snd_printk(KERN_ERR "unknown CS4236/CS423xB chip (enhanced version = 0x%x)\n", rev >> 5);
+		/* I added this after porting the code changes to 4.4.302 since it would be best to
+		 * stop the probe instead of continuing with a result that might be broken. */
+		return -ENODEV;
 	}
 
 	spin_lock_irqsave(&chip->reg_lock, flags);
@@ -1257,7 +1264,6 @@ static int snd_wss_probe(struct snd_wss *chip)
 
 	/* TODO can this delay be removed? Sound is working; didn't continue the investigation. */
 	mdelay(2);
-
 
 	return 0;		/* all things are ok.. */
 }
@@ -1400,7 +1406,6 @@ static void snd_wss_resume(struct snd_wss *chip)
 {
 	int reg;
 	unsigned long flags;
-	int timeout;
 
 	snd_wss_mce_up(chip);
 	spin_lock_irqsave(&chip->reg_lock, flags);
@@ -1415,24 +1420,6 @@ static void snd_wss_resume(struct snd_wss *chip)
 	}
 	spin_unlock_irqrestore(&chip->reg_lock, flags);
 	snd_wss_mce_down(chip);
-	/* The following is a workaround to avoid freeze after resume on TP600E.
-	   This is the first half of copy of snd_wss_mce_down(), but doesn't
-	   include rescheduling.  -- iwai
-	   */
-	snd_wss_busy_wait(chip);
-	spin_lock_irqsave(&chip->reg_lock, flags);
-	chip->mce_bit &= ~CS4231_MCE;
-	timeout = wss_inb(chip, CS4231P(REGSEL));
-	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | (timeout & 0x1f));
-	spin_unlock_irqrestore(&chip->reg_lock, flags);
-	if (timeout == 0x80)
-		snd_printk(KERN_ERR "down [0x%lx]: serious init problem "
-			   "- codec still busy\n", chip->port);
-	if ((timeout & CS4231_MCE) == 0 ||
-	    !(chip->hardware & (WSS_HW_CS4231_MASK | WSS_HW_CS4232_MASK))) {
-		return;
-	}
-	snd_wss_busy_wait(chip);
 }
 
 static int snd_wss_free(struct snd_wss *chip)

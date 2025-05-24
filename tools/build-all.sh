@@ -12,58 +12,67 @@
 # in a release/$1.$2 folder (for example release/6.12.11.15.9).
 ##################################################################
 
-BUILD_VERSION_ERROR_MESSAGE="Please enter a build version, TCL_RELEASE_TYPE and core.gz or rootfs.gz. For example: build-all.sh 6.12.11.15.9 release core.gz"
-if [ ! $# -eq 3 ]; then
-  echo $BUILD_VERSION_ERROR_MESSAGE
-  exit 6
+# Source (include) functions from tools/common.sh
+. "$(dirname "$0")/common.sh"
+
+HOME_TC=/home/tc
+
+REQUIRED_ARGUMENTS="VERSION_QUINTUPLET, TCL_RELEASE_TYPE, core.gz or rootfs.gz, LOCALVERSION, TCL_DOCKER_IMAGE_VERSION, (optional) CIP_NUMBER are required."
+CALL_EXAMPLE="./build-all.sh 4.4.302.7.1 release rooftfs.gz -tinycore-560z 16.x 97"
+ARGUMENT_ERROR_MESSAGE="$REQUIRED_ARGUMENTS For example: $CALL_EXAMPLE"
+
+if [ ! $# -ge 5 ]; then
+  echo $ARGUMENT_ERROR_MESSAGE
+  exit 1
 fi
-# Save the first parameter as the build version.
-BUILD_VERSION=$1
+
+VERSION_QUINTUPLET=$1
+
 TCL_RELEASE_TYPE=$2
 if [ $TCL_RELEASE_TYPE != "release" ] && [ $TCL_RELEASE_TYPE != "release_candidates" ]; then
   echo "The 2nd parameter should be either 'release' or 'release_candidates'."
-  exit 12
+  exit 2
 fi
+
 CORE_GZ=$3
 if [ $CORE_GZ != "core.gz" ] && [ $CORE_GZ != "rootfs.gz" ]; then
   echo "The 3rd parameter should be either 'core.gz' or 'rootfs.gz'."
-  exit 13
+  exit 3
 fi
+
+LOCALVERSION=$4
+
+TCL_DOCKER_IMAGE_VERSION=$5
+
+CIP_NUMBER=$6
+if [ ! -z CIP_NUMBER ]; then
+  if ! check_is_digit 1 $CIP_NUMBER; then
+    echo "CIP_NUMBER is wrong: $CIP_NUMBER. For example, enter 97 if your tar name has something like 4.4.302-cip97."
+    exit 4
+  fi
+fi
+
 # IFS is by default space, tab and newline. When 6.12.11.15.9 is entered, it is 1 parameter and in the first positional parameter.
 # Set the Internal Field Separator to "." that way each digit of 6.12.11.15.9 will be separated in different variables.
 OLD_IFS=$IFS
 IFS="."
 # Use set to reset the positional parameters.
-set -- $BUILD_VERSION
-echo $BUILD_VERSION
-N1=$1
-N2=$2
-N3=$3
-N4=$4
-N5=$5
-KERNEL_VERSION=$1.$2.$3
-TINYCORE_ITERATION=$4.$5
-# Display the values for tracking purposes.
-echo "BUILD_VERSION=$BUILD_VERSION, N1=$N1, N2=$N2, N3=$N3, N4=$N4, N5=$N5, KERNEL_VERSION=$KERNEL_VERSION, TINYCORE_ITERATION=$TINYCORE_ITERATION"
-# Check N1 to N5 are integers.
+set -- $VERSION_QUINTUPLET
 # Check if each part is a valid integer
 n_number=1
-for N in "$N1" "$N2" "$N3" "$N4" "$N5"; do
-  non_digits=$(echo "$N" | sed 's/[0-9]//g')
-  DIGIT_ERROR_MESSAGE="Digit number $n_number in $BUILD_VERSION is '$N' and is not an integer."
-  if [ -n "$non_digits" ]; then
-    echo "$DIGIT_ERROR_MESSAGE $BUILD_VERSION_ERROR_MESSAGE"
-    exit $n_number
-  fi
-  if [ -z "$N" ]; then
-    echo "$DIGIT_ERROR_MESSAGE $BUILD_VERSION_ERROR_MESSAGE"
-    exit $n_number
+for N in "$1" "$2" "$3" "$4" "$5"; do
+  if ! check_is_digit $n_number $N; then
+    echo "$ARGUMENT_ERROR_MESSAGE"
+    exit 5
   fi
   n_number=$((n_number+1))
 done
-KERNEL_VERSION=$N1.$N2.$N3
 # Restore IFS otherwise all commands below will split parameters using dots and will fail.
 IFS=$OLD_IFS
+
+KERNEL_VERSION=$1.$2.$3
+TCL_MAJOR_VERSION_NUMBER=$4
+ITERATION_NUMBER=$5
 
 if [ ! .config ] || [ ! .config-v5.x ]; then
   echo "Please make sure this folder is the base folder of "\
@@ -156,35 +165,66 @@ if [ ! cs4237b/include/sound/wss.h ]; then
   exit 20
 fi
 
-if [ ! -f docker-compose.yml ] || ! grep -q "$BUILD_VERSION" docker-compose.yml; then
-  echo "Did not find $BUILD_VERSION in docker-compose.yml. Rewriting docker-compose.yml."
+# Default to linux kernel project naming conventions.
+KERNEL_BRANCH=v$1.x
+KERNEL_NAME=linux-$KERNEL_VERSION
+KERNEL_TAR=$KERNEL_NAME.tar.xz
+KERNEL_URL=https://cdn.kernel.org/pub/linux/kernel/$KERNEL_BRANCH/$KERNEL_TAR
+
+if [ ! -z $CIP_NUMBER ]; then
+  KERNEL_VERSION=$KERNEL_VERSION-cip$CIP_NUMBER
+  echo "$KERNEL_VERSION is maintained by CIP. Changing KERNEL_NAME, KERNEL_TAR, KERNEL_URL."
+  KERNEL_NAME=linux-cip-$KERNEL_VERSION
+  KERNEL_TAR=$KERNEL_NAME.tar.gz
+  KERNEL_URL=https://git.kernel.org/pub/scm/linux/kernel/git/cip/linux-cip.git/snapshot/$KERNEL_TAR
+fi
+KERNEL_ID=$KERNEL_VERSION$LOCALVERSION
+RELEASE_VERSION=$KERNEL_VERSION.$TCL_MAJOR_VERSION_NUMBER.$ITERATION_NUMBER
+RELEASE_DIRECTORY=$HOME_TC/release/$RELEASE_VERSION
+HOST_RELEASE_DIRECTORY=./release/$RELEASE_VERSION
+
+CACHE=$HOME_TC/cache/$KERNEL_VERSION
+HOST_CACHE=`pwd`/cache/$KERNEL_VERSION
+echo "HOST_CACHE=$HOST_CACHE"
+mkdir -p $HOST_CACHE
+
+if [ ! -f docker-compose.yml ] || ! grep -q "$KERNEL_URL" docker-compose.yml || ! grep -q "ITERATION_NUMBER=$5" docker-compose.yml || ! grep -q "KERNEL_ID=$KERNEL_ID" docker-compose.yml || ! grep -q "RELEASE_VERISON=$RELEASE_VERSION" docker-compose.yml || ! grep -q "TCL_DOCKER_IMAGE_VERSION=$TCL_DOCKER_IMAGE_VERSION" docker-compose.yml; then
+  echo "Did not find $KERNEL_URL or the ITERATION_NUMBER=$ITERATION_NUMBER or the KERNEL_ID=$KERNEL_ID or the TCL_DOCKER_IMAGE_VERSION=$TCL_DOCKER_IMAGE_VERSION in docker-compose.yml. Rewriting docker-compose.yml."
   echo "services:\n"\
     " main:\n"\
     "   build:\n"\
     "     context: .\n"\
     "     args:\n"\
     "       - CORE_GZ=$CORE_GZ\n"\
-    "       - ITERATION_NUMBER=$N5\n"\
-    "       - KERNEL_BRANCH=v$N1.x\n"\
-    "       - KERNEL_SUFFIX=tinycore-560z\n"\
+    "       - CIP_NUMBER=$CIP_NUMBER\n"\
+    "       - ITERATION_NUMBER=$ITERATION_NUMBER\n"\
+    "       - KERNEL_BRANCH=$KERNEL_BRANCH\n"\
+    "       - KERNEL_ID=$KERNEL_ID\n"\
+    "       - KERNEL_NAME=$KERNEL_NAME\n"\
+    "       - KERNEL_TAR=$KERNEL_TAR\n"\
+    "       - KERNEL_URL=$KERNEL_URL\n"\
     "       - KERNEL_VERSION=$KERNEL_VERSION\n"\
-    "       - TCL_MAJOR_VERSION_NUMBER=$N4\n"\
+    "       - LOCALVERSION=$LOCALVERSION\n"\
+    "       - RELEASE_DIRECTORY=$RELEASE_DIRECTORY\n"\
+    "       - RELEASE_VERSION=$RELEASE_VERSION\n"\
+    "       - TCL_DOCKER_IMAGE_VERSION=$TCL_DOCKER_IMAGE_VERSION\n"\
     "       - TCL_RELEASE_TYPE=$TCL_RELEASE_TYPE\n"\
-    "       - TCL_VERSION=$N4.x\n"\
+    "       - TCL_VERSION=$TCL_MAJOR_VERSION_NUMBER.x\n"\
+    "       - VERSION_QUINTUPLET=$VERSION_QUINTUPLET\n"\
     "     dockerfile: Dockerfile\n"\
     "     tags:\n"\
-    "       - linichotmailca/tcl-core-560z:$BUILD_VERSION\n"\
+    "       - linichotmailca/tcl-core-560z:$RELEASE_VERSION\n"\
     "       - linichotmailca/tcl-core-560z:latest\n" > docker-compose.yml
 fi
 
 echo "Requirements are met. Building and getting..."
-echo "  alsa-modules-$KERNEL_VERSION.tcz"
-echo "  net-modules-$KERNEL_VERSION.tcz"
-echo "  parport-modules-$KERNEL_VERSION.tcz"
-echo "  pcmcia-modules-$KERNEL_VERSION.tcz"
-echo "  usb-modules-$KERNEL_VERSION.tcz"
-echo "  bzImage-$KERNEL_VERSION.$TINYCORE_ITERATION"
-echo "  core-$KERNEL_VERSION.$TINYCORE_ITERATION.gz"
+echo "  alsa-modules-$KERNEL_ID.tcz"
+echo "  net-modules-$KERNEL_ID.tcz"
+echo "  parport-modules-$KERNEL_ID.tcz"
+echo "  pcmcia-modules-$KERNEL_ID.tcz"
+echo "  usb-modules-$KERNEL_ID.tcz"
+echo "  bzImage-$RELEASE_VERSION"
+echo "  core-$RELEASE_VERSION.gz"
 
 if sudo docker compose --progress=plain -f docker-compose.yml build; then
   echo "Kernel and TCZs built successfully."
@@ -195,44 +235,46 @@ fi
 
 sudo docker compose --progress=plain -f docker-compose.yml up --detach
 
-mkdir -p ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/
-cd ./release/$KERNEL_VERSION.$TINYCORE_ITERATION/
+mkdir -p $HOST_RELEASE_DIRECTORY
+cd $HOST_RELEASE_DIRECTORY
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/alsa-modules-$KERNEL_VERSION-tinycore-560z.tcz ./
-md5sum ./alsa-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./alsa-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
-cat ./alsa-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/alsa-modules-$KERNEL_ID.tcz ./
+md5sum ./alsa-modules-$KERNEL_ID.tcz > ./alsa-modules-$KERNEL_ID.tcz.md5.txt
+cat ./alsa-modules-$KERNEL_ID.tcz.md5.txt
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/ipv6-netfilter-$KERNEL_VERSION-tinycore-560z.tcz ./
-md5sum ./ipv6-netfilter-$KERNEL_VERSION-tinycore-560z.tcz > ./ipv6-netfilter-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
-cat ./ipv6-netfilter-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/ipv6-netfilter-$KERNEL_ID.tcz ./
+md5sum ./ipv6-netfilter-$KERNEL_ID.tcz > ./ipv6-netfilter-$KERNEL_ID.tcz.md5.txt
+cat ./ipv6-netfilter-$KERNEL_ID.tcz.md5.txt
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/net-modules-$KERNEL_VERSION-tinycore-560z.tcz ./
-md5sum ./net-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./net-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
-cat ./net-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/net-modules-$KERNEL_ID.tcz ./
+md5sum ./net-modules-$KERNEL_ID.tcz > ./net-modules-$KERNEL_ID.tcz.md5.txt
+cat ./net-modules-$KERNEL_ID.tcz.md5.txt
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/parport-modules-$KERNEL_VERSION-tinycore-560z.tcz ./
-md5sum ./parport-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./parport-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
-cat ./parport-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/parport-modules-$KERNEL_ID.tcz ./
+md5sum ./parport-modules-$KERNEL_ID.tcz > ./parport-modules-$KERNEL_ID.tcz.md5.txt
+cat ./parport-modules-$KERNEL_ID.tcz.md5.txt
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/pcmcia-modules-$KERNEL_VERSION-tinycore-560z.tcz ./
-md5sum ./pcmcia-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./pcmcia-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
-cat ./pcmcia-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/pcmcia-modules-$KERNEL_ID.tcz ./
+md5sum ./pcmcia-modules-$KERNEL_ID.tcz > ./pcmcia-modules-$KERNEL_ID.tcz.md5.txt
+cat ./pcmcia-modules-$KERNEL_ID.tcz.md5.txt
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/usb-modules-$KERNEL_VERSION-tinycore-560z.tcz ./
-md5sum ./usb-modules-$KERNEL_VERSION-tinycore-560z.tcz > ./usb-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
-cat ./usb-modules-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/usb-modules-$KERNEL_ID.tcz ./
+md5sum ./usb-modules-$KERNEL_ID.tcz > ./usb-modules-$KERNEL_ID.tcz.md5.txt
+cat ./usb-modules-$KERNEL_ID.tcz.md5.txt
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/wireless-$KERNEL_VERSION-tinycore-560z.tcz ./
-md5sum ./wireless-$KERNEL_VERSION-tinycore-560z.tcz > ./wireless-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
-cat ./wireless-$KERNEL_VERSION-tinycore-560z.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/wireless-$KERNEL_ID.tcz ./
+md5sum ./wireless-$KERNEL_ID.tcz > ./wireless-$KERNEL_ID.tcz.md5.txt
+cat ./wireless-$KERNEL_ID.tcz.md5.txt
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/bzImage-$KERNEL_VERSION.$TINYCORE_ITERATION ./
-md5sum ./bzImage-$KERNEL_VERSION.$TINYCORE_ITERATION > ./bzImage-$KERNEL_VERSION.$TINYCORE_ITERATION.md5.txt
-cat ./bzImage-$KERNEL_VERSION.$TINYCORE_ITERATION.md5.txt
+sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/bzImage-$RELEASE_VERSION ./
+md5sum ./bzImage-$RELEASE_VERSION > ./bzImage-$RELEASE_VERSION.md5.txt
+cat ./bzImage-$RELEASE_VERSION.md5.txt
 
-sudo docker cp tcl-core-560z-main-1:/home/tc/core-$KERNEL_VERSION.$TINYCORE_ITERATION.gz ./
-md5sum ./core-$KERNEL_VERSION.$TINYCORE_ITERATION.gz > ./core-$KERNEL_VERSION.$TINYCORE_ITERATION.gz.md5.txt
-cat ./core-$KERNEL_VERSION.$TINYCORE_ITERATION.gz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/core-$RELEASE_VERSION.gz ./
+md5sum ./core-$RELEASE_VERSION.gz > ./core-$RELEASE_VERSION.gz.md5.txt
+cat ./core-$RELEASE_VERSION.gz.md5.txt
+
+sudo docker cp tcl-core-560z-main-1:$CACHE/* $HOST_CACHE/*
 
 cd ../..
 sudo docker compose --progress=plain -f docker-compose.yml down

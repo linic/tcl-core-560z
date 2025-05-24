@@ -53,6 +53,13 @@ and it works well. Read more below.
 The 5.10 kernels will be supported [by the CIP](https://wiki.linuxfoundation.org/civilinfrastructureplatform/start)
 until [2031 according to wikipedia](https://en.wikipedia.org/wiki/Linux_kernel_version_history).
 
+### 4.4.302-cip97
+I started working on using the 4.4.302-cip97 kernel with tinycore. For now, it only works until tinycore 9.x.
+Starting with TC 10.x I get FATAL: kernel too old. See my other [tcc repo](https://github.com/linic/tcc) for
+some research I'm doing to generate a `rootfs.gz` which may be compatible with 4.4.302-cip97.
+I added code in Dockerfile and Dockerfile.edit-config to be able to swap the kernel in most tinycore releases
+(tested with 7.x, 8.x, 9.x, 10.x, 11.x, 12.x).
+
 ### Why the official TCL Core 15.0 won't start?
 Even with a swap partition, TCL Core 15.0 tries to start `init` before loading the swap and since there is 
 not enough memory without the swap, `init` fails with codes such as 

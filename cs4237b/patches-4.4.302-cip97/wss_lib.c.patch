@@ -1,7 +1,6 @@
---- a/sound/isa/wss/wss_lib.c	2025-03-13 07:47:45.000000000 -0400
-+++ b/sound/isa/wss/wss_lib.c	2025-04-23 11:51:20.358393243 -0400
-@@ -1,13 +1,18 @@
- // SPDX-License-Identifier: GPL-2.0-or-later
+--- a/sound/isa/wss/wss_lib.c	2025-03-18 10:02:02.000000000 -0400
++++ b/sound/isa/wss/wss_lib.c	2025-04-23 11:51:19.438393261 -0400
+@@ -1,12 +1,16 @@
  /*
   *  Copyright (c) by Jaroslav Kysela <perex@perex.cz>
 - *  Routines for control of CS4231(A)/CS4232/InterWave & compatible chips
@@ -21,11 +20,10 @@
 + *    "sudo alsactl store CS4237B" can be used to save the alsa settings including the volumes.
 + *    After a reboot, "sudo alsactl init CS4237B" and "sudo alsactl restore CS4237B" are needed for
 + *    sound to be audible.
-+ *
-  */
- 
- #include <linux/delay.h>
-@@ -30,9 +35,7 @@
+  *
+  *   This program is free software; you can redistribute it and/or modify
+  *   it under the terms of the GNU General Public License as published by
+@@ -44,9 +48,7 @@
  MODULE_DESCRIPTION("Routines for control of CS4231(A)/CS4232/InterWave & compatible chips");
  MODULE_LICENSE("GPL");
  
@@ -35,12 +33,12 @@
  
  /*
   *  Some variables
-@@ -151,198 +154,237 @@
+@@ -165,198 +167,240 @@
  static inline void wss_outb(struct snd_wss *chip, u8 offset, u8 val)
  {
  	outb(val, chip->port + offset);
 +	if (offset == CS4231P(REGSEL) || offset == CS4231P(STATUS) || offset == CS4231P(PIO)) {
-+		dev_dbg(chip->card->dev, "R%u set to 0x%x\n", offset, val);
++		snd_printk(KERN_DEBUG "R%u set to 0x%x\n", offset, val);
 +	}
  }
  
@@ -161,17 +159,12 @@
  
 -void snd_cs4236_ext_out(struct snd_wss *chip, unsigned char reg,
 -			unsigned char val)
-+/* Write a value on an extended register. */
-+void snd_cs4236_ext_out(struct snd_wss *chip, unsigned char extended_register_address, unsigned char new_value)
- {
+-{
 -	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | 0x17);
--	wss_outb(chip, CS4231P(REG),
--		 reg | (chip->image[CS4236_EXT_REG] & 0x01));
--	wss_outb(chip, CS4231P(REG), val);
--	chip->eimage[CS4236_REG(reg)] = val;
--#if 0
--	printk(KERN_DEBUG "ext out : reg = 0x%x, val = 0x%x\n", reg, val);
--#endif
++/* Write a value on an extended register. */
++void snd_cs4236_ext_out(struct snd_wss *chip, unsigned char extended_register_address,
++			unsigned char new_value)
++{
 +	/* 0x17 selects I23
 +	 * Extended Register Access (I23)
 +	 * D7  D6  D5  D4  D3   D2  D1  D0
@@ -274,7 +267,14 @@
 +	 * playback and capture interrupts.
 +	 * For now, sound works on my 560z so I didn't investigate further. */
 +	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | i23_address);
-+	wss_outb(chip, CS4231P(REG), extended_register_address | (chip->image[CS4236_EXT_REG] & 0x01));
+ 	wss_outb(chip, CS4231P(REG),
+-		 reg | (chip->image[CS4236_EXT_REG] & 0x01));
+-	wss_outb(chip, CS4231P(REG), val);
+-	chip->eimage[CS4236_REG(reg)] = val;
+-#if 0
+-	printk(KERN_DEBUG "ext out : reg = 0x%x, val = 0x%x\n", reg, val);
+-#endif
++		 extended_register_address | (chip->image[CS4236_EXT_REG] & 0x01));
 +	wss_outb(chip, CS4231P(REG), new_value);
 +	chip->eimage[CS4236_REG(extended_register_address)] = new_value;
 +	snd_printdd("X%u set to 0x%x (XRAE=0x%x)\n", xa4_xa0, new_value, xrae);
@@ -288,7 +288,14 @@
 +unsigned char snd_cs4236_ext_in(struct snd_wss *chip, unsigned char extended_register_address)
  {
 -	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | 0x17);
--	wss_outb(chip, CS4231P(REG),
++	unsigned char res;
++	unsigned char i23_address = 0x17;
++	unsigned char xa3_xa0 = extended_register_address & 0xf0;
++	unsigned char xa4 = extended_register_address & 0x04;
++	unsigned char xrae = extended_register_address & 0x08;
++	unsigned char xa4_xa0 = xa4 << 2 | xa3_xa0 >> 4;
++	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | i23_address);
+ 	wss_outb(chip, CS4231P(REG),
 -		 reg | (chip->image[CS4236_EXT_REG] & 0x01));
 -#if 1
 -	return wss_inb(chip, CS4231P(REG));
@@ -301,14 +308,7 @@
 -		return res;
 -	}
 -#endif
-+	unsigned char res;
-+	unsigned char i23_address = 0x17;
-+	unsigned char xa3_xa0 = extended_register_address & 0xf0;
-+	unsigned char xa4 = extended_register_address & 0x04;
-+	unsigned char xrae = extended_register_address & 0x08;
-+	unsigned char xa4_xa0 = xa4 << 2 | xa3_xa0 >> 4;
-+	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | i23_address);
-+	wss_outb(chip, CS4231P(REG), extended_register_address | (chip->image[CS4236_EXT_REG] & 0x01));
++		 extended_register_address | (chip->image[CS4236_EXT_REG] & 0x01));
 +	res = wss_inb(chip, CS4231P(REG));
 +	snd_printdd("X%u reads 0x%x (XRAE=0x%x)\n", xa4_xa0, res, xrae);
 +	return res;
@@ -420,7 +420,7 @@
  static void snd_wss_busy_wait(struct snd_wss *chip)
  {
  	int timeout;
-@@ -357,56 +399,54 @@
+@@ -371,56 +415,60 @@
  		udelay(10);
  }
  
@@ -454,6 +454,12 @@
 +	set_mce = CS4231_MCE | (index_address_register & WSS_IA01234_MASK); 
 +	is_mce_set = (index_address_register & CS4231_MCE) != 0;
 +	cannot_respond = index_address_register & CS4231_INIT;
++	/* This change I made is not equivalent to the previous code. Previously, the cannot respond would be used to
++	 * log only and now I use it to decide whether or not to set the mce up. Which I think is fine according 
++	 * to the documentation because if the CS4231_INIT bit is set, trying to set MCE up won't work.
++	 * Second thing, the chip->mce_bit is overwritten before getting here. So there's a chance it couldn't be 
++	 * reflecting the current state only when we don't enter the if. For now, I'll leave this as it is because 
++	 * it works on my 560z. */
 +	if (!is_mce_set && !cannot_respond)
 +		/* chip->mce was originally an int, which is strange bceause its name has "bit" so it should
 +		 * be a single bit. Since we use it to prepare the value to set on the indirect_address_register
@@ -505,7 +511,7 @@
  		return;
  
  	/*
-@@ -416,47 +456,73 @@
+@@ -430,47 +478,73 @@
  	 */
  	msleep(1);
  
@@ -601,7 +607,7 @@
  	}
  	if (format & CS4231_STEREO)
  		size >>= 1;
-@@ -505,9 +571,6 @@
+@@ -519,9 +593,6 @@
  	}
  	snd_wss_out(chip, CS4231_IFACE_CTRL, chip->image[CS4231_IFACE_CTRL]);
  	spin_unlock(&chip->reg_lock);
@@ -611,7 +617,7 @@
  	return result;
  }
  
-@@ -542,9 +605,7 @@
+@@ -556,9 +627,7 @@
  	}
  	if (channels > 1)
  		rformat |= CS4231_STEREO;
@@ -622,40 +628,10 @@
  	return rformat;
  }
  
-@@ -559,180 +620,93 @@
- 		return;
- 	}
- 	if (!mute) {
--		snd_wss_dout(chip, CS4231_LEFT_INPUT,
--			     chip->image[CS4231_LEFT_INPUT]);
--		snd_wss_dout(chip, CS4231_RIGHT_INPUT,
--			     chip->image[CS4231_RIGHT_INPUT]);
--		snd_wss_dout(chip, CS4231_LOOPBACK,
--			     chip->image[CS4231_LOOPBACK]);
-+		snd_wss_dout(chip, CS4231_LEFT_INPUT, chip->image[CS4231_LEFT_INPUT]);
-+		snd_wss_dout(chip, CS4231_RIGHT_INPUT, chip->image[CS4231_RIGHT_INPUT]);
-+		snd_wss_dout(chip, CS4231_LOOPBACK, chip->image[CS4231_LOOPBACK]);
- 	} else {
--		snd_wss_dout(chip, CS4231_LEFT_INPUT,
--			     0);
--		snd_wss_dout(chip, CS4231_RIGHT_INPUT,
--			     0);
--		snd_wss_dout(chip, CS4231_LOOPBACK,
--			     0xfd);
--	}
--
--	snd_wss_dout(chip, CS4231_AUX1_LEFT_INPUT,
--		     mute | chip->image[CS4231_AUX1_LEFT_INPUT]);
--	snd_wss_dout(chip, CS4231_AUX1_RIGHT_INPUT,
--		     mute | chip->image[CS4231_AUX1_RIGHT_INPUT]);
--	snd_wss_dout(chip, CS4231_AUX2_LEFT_INPUT,
--		     mute | chip->image[CS4231_AUX2_LEFT_INPUT]);
--	snd_wss_dout(chip, CS4231_AUX2_RIGHT_INPUT,
--		     mute | chip->image[CS4231_AUX2_RIGHT_INPUT]);
--	snd_wss_dout(chip, CS4231_LEFT_OUTPUT,
--		     mute | chip->image[CS4231_LEFT_OUTPUT]);
--	snd_wss_dout(chip, CS4231_RIGHT_OUTPUT,
--		     mute | chip->image[CS4231_RIGHT_OUTPUT]);
+@@ -600,153 +669,84 @@
+ 		     mute | chip->image[CS4231_LEFT_OUTPUT]);
+ 	snd_wss_dout(chip, CS4231_RIGHT_OUTPUT,
+ 		     mute | chip->image[CS4231_RIGHT_OUTPUT]);
 -	if (!(chip->hardware & WSS_HW_AD1848_MASK)) {
 -		snd_wss_dout(chip, CS4231_LEFT_LINE_IN,
 -			     mute | chip->image[CS4231_LEFT_LINE_IN]);
@@ -673,27 +649,16 @@
 -			     mute | chip->image[CS4231_LINE_LEFT_OUTPUT]);
 -		snd_wss_dout(chip, CS4231_LINE_RIGHT_OUTPUT,
 -			     mute | chip->image[CS4231_LINE_RIGHT_OUTPUT]);
-+		snd_wss_dout(chip, CS4231_LEFT_INPUT, 0);
-+		snd_wss_dout(chip, CS4231_RIGHT_INPUT, 0);
-+		snd_wss_dout(chip, CS4231_LOOPBACK, 0xfd);
- 	}
-+
-+	snd_wss_dout(chip, CS4231_AUX1_LEFT_INPUT, mute | chip->image[CS4231_AUX1_LEFT_INPUT]);
-+	snd_wss_dout(chip, CS4231_AUX1_RIGHT_INPUT, mute | chip->image[CS4231_AUX1_RIGHT_INPUT]);
-+	snd_wss_dout(chip, CS4231_AUX2_LEFT_INPUT, mute | chip->image[CS4231_AUX2_LEFT_INPUT]);
-+	snd_wss_dout(chip, CS4231_AUX2_RIGHT_INPUT, mute | chip->image[CS4231_AUX2_RIGHT_INPUT]);
-+	snd_wss_dout(chip, CS4231_LEFT_OUTPUT, mute | chip->image[CS4231_LEFT_OUTPUT]);
-+	snd_wss_dout(chip, CS4231_RIGHT_OUTPUT, mute | chip->image[CS4231_RIGHT_OUTPUT]);
+-	}
 +	/* simplfied code since hardware is WSS_HW_CS4237B */
  	chip->calibrate_mute = mute;
  	spin_unlock_irqrestore(&chip->reg_lock, flags);
  }
  
--static void snd_wss_playback_format(struct snd_wss *chip,
--				       struct snd_pcm_hw_params *params,
--				       unsigned char pdfr)
 +/* Check the 3 format bits, store them in chip->image[CS4231_PLAYBK_FORMAT] and write them out on the WSS registers. */
-+static void snd_wss_playback_format(struct snd_wss *chip, struct snd_pcm_hw_params *params, unsigned char pdfr)
+ static void snd_wss_playback_format(struct snd_wss *chip,
+ 				       struct snd_pcm_hw_params *params,
+ 				       unsigned char pdfr)
  {
  	unsigned long flags;
 -	int full_calib = 1;
@@ -775,9 +740,6 @@
  	mutex_unlock(&chip->mce_mutex);
  }
  
--static void snd_wss_capture_format(struct snd_wss *chip,
--				   struct snd_pcm_hw_params *params,
--				   unsigned char cdfr)
 +/* set the capture format on 
 + * CS4231_PLAYBK_FORMAT which is 0x08 which is I8
 + * Fs and Playback Data Format (I8)
@@ -789,7 +751,9 @@
 + * Default = 0000xxxx
 + * D7 D6 D5 D4 D3 D2 D1 D0
 + * FMT1 FMT0 C/L S/M res res res res */
-+static void snd_wss_capture_format(struct snd_wss *chip, struct snd_pcm_hw_params *params, unsigned char cdfr)
+ static void snd_wss_capture_format(struct snd_wss *chip,
+ 				   struct snd_pcm_hw_params *params,
+ 				   unsigned char cdfr)
  {
  	unsigned long flags;
 -	int full_calib = 1;
@@ -831,7 +795,9 @@
 +	/* TODO tres etrange. Je pense que ce if ne devrait pas s'appliquer. Peut-etre le garder et mettre en dbg_err 
 +	 * pour le suivre a l'execution. Vu que le son fonctionne, je n'ai pas poursuivi mes recherches. */
 +	if (!(chip->image[CS4231_IFACE_CTRL] & CS4231_PLAYBACK_ENABLE)) {
-+		snd_wss_out(chip, CS4231_PLAYBK_FORMAT, (chip->image[CS4231_PLAYBK_FORMAT] & 0xf0) | (cdfr & 0x0f));
++		snd_wss_out(chip, CS4231_PLAYBK_FORMAT,
++				 (chip->image[CS4231_PLAYBK_FORMAT] & 0xf0) |
++				 (cdfr & 0x0f));
  		spin_unlock_irqrestore(&chip->reg_lock, flags);
 -	}
 -	if (full_calib) {
@@ -869,7 +835,7 @@
  	mutex_unlock(&chip->mce_mutex);
  }
  
-@@ -792,9 +766,7 @@
+@@ -806,9 +806,7 @@
  	snd_wss_calibrate_mute(chip, 1);
  	snd_wss_mce_down(chip);
  
@@ -879,7 +845,7 @@
  	snd_wss_mce_up(chip);
  	spin_lock_irqsave(&chip->reg_lock, flags);
  	chip->image[CS4231_IFACE_CTRL] &= ~(CS4231_PLAYBACK_ENABLE |
-@@ -807,9 +779,7 @@
+@@ -821,9 +819,7 @@
  	spin_unlock_irqrestore(&chip->reg_lock, flags);
  	snd_wss_mce_down(chip);
  
@@ -889,7 +855,7 @@
  
  	snd_wss_mce_up(chip);
  	spin_lock_irqsave(&chip->reg_lock, flags);
-@@ -820,10 +790,8 @@
+@@ -834,10 +830,8 @@
  	spin_unlock_irqrestore(&chip->reg_lock, flags);
  	snd_wss_mce_down(chip);
  
@@ -900,7 +866,7 @@
  
  	spin_lock_irqsave(&chip->reg_lock, flags);
  	snd_wss_out(chip, CS4231_ALT_FEATURE_2,
-@@ -837,9 +805,7 @@
+@@ -851,9 +845,7 @@
  	spin_unlock_irqrestore(&chip->reg_lock, flags);
  	snd_wss_mce_down(chip);
  
@@ -910,7 +876,7 @@
  
  	snd_wss_mce_up(chip);
  	spin_lock_irqsave(&chip->reg_lock, flags);
-@@ -850,9 +816,7 @@
+@@ -864,9 +856,7 @@
  	snd_wss_mce_down(chip);
  	snd_wss_calibrate_mute(chip, 0);
  
@@ -920,7 +886,7 @@
  }
  
  static int snd_wss_open(struct snd_wss *chip, unsigned int mode)
-@@ -860,8 +824,8 @@
+@@ -874,8 +864,8 @@
  	unsigned long flags;
  
  	mutex_lock(&chip->open_mutex);
@@ -931,8 +897,8 @@
  		mutex_unlock(&chip->open_mutex);
  		return -EAGAIN;
  	}
-@@ -990,6 +954,23 @@
- 	return 0;
+@@ -1012,6 +1002,23 @@
+ 	return snd_pcm_lib_free_pages(substream);
  }
  
 +/* Set the playback DMA registers for sending data to the DACs.
@@ -955,7 +921,7 @@
  static int snd_wss_playback_prepare(struct snd_pcm_substream *substream)
  {
  	struct snd_wss *chip = snd_pcm_substream_chip(substream);
-@@ -1002,13 +983,50 @@
+@@ -1024,13 +1031,50 @@
  	chip->p_dma_size = size;
  	chip->image[CS4231_IFACE_CTRL] &= ~(CS4231_PLAYBACK_ENABLE | CS4231_PLAYBACK_PIO);
  	snd_dma_program(chip->dma1, runtime->dma_addr, size, DMA_MODE_WRITE | DMA_AUTOINIT);
@@ -1009,7 +975,7 @@
  	return 0;
  }
  
-@@ -1037,22 +1055,13 @@
+@@ -1067,22 +1111,13 @@
  	chip->c_dma_size = size;
  	chip->image[CS4231_IFACE_CTRL] &= ~(CS4231_RECORD_ENABLE | CS4231_RECORD_PIO);
  	snd_dma_program(chip->dma2, runtime->dma_addr, size, DMA_MODE_READ | DMA_AUTOINIT);
@@ -1039,7 +1005,7 @@
  	spin_unlock_irqrestore(&chip->reg_lock, flags);
  	return 0;
  }
-@@ -1070,52 +1079,35 @@
+@@ -1100,52 +1135,35 @@
  }
  EXPORT_SYMBOL(snd_wss_overrange);
  
@@ -1107,7 +1073,7 @@
  	spin_unlock(&chip->reg_lock);
  	return IRQ_HANDLED;
  }
-@@ -1143,92 +1135,8 @@
+@@ -1173,92 +1191,8 @@
  	return bytes_to_frames(substream->runtime, ptr);
  }
  
@@ -1202,7 +1168,7 @@
  static int snd_wss_probe(struct snd_wss *chip)
  {
  	unsigned long flags;
-@@ -1236,192 +1144,130 @@
+@@ -1266,192 +1200,128 @@
  	unsigned char *ptr;
  	unsigned int hw;
  
@@ -1290,6 +1256,8 @@
 +		snd_printk(KERN_ERR "not the 560z and not the CS4237B because version 0x%x\n", rev);
 +		return -ENODEV;
 +	}
++	/* Should there be an mb(); here? Porting down from 5.10.235, there was an mb();, but I couldn't find a reason to add it here...
++	 * I still added it because mb(); in its nature (read the documentation) shouldn't harm anything I believe. */
 +	mb();
 +	/* CS4236_VERSION is 0x9c which is 0b1001 1100
 +	 * Extended Register Access (I23)
@@ -1327,16 +1295,12 @@
 +			default:
 +				/* I made this an error because I know the 560z only supports these revisions. */
 +				snd_printk(KERN_ERR "unknown CS4237B chip (enhanced version = 0x%x)\n", rev >> 5);
-+				/* I added this after porting the code changes to 4.4.302 since it would be best to
-+				 * stop the probe instead of continuing with a result that might be broken. */
-+				return -ENODEV;
++				return -ENODEV;		/* I added this which 5.10.235 didn't have because I think it's better to fail fast. */
  		}
  	}
 +	else {
 +		snd_printk(KERN_ERR "unknown CS4236/CS423xB chip (enhanced version = 0x%x)\n", rev >> 5);
-+		/* I added this after porting the code changes to 4.4.302 since it would be best to
-+		 * stop the probe instead of continuing with a result that might be broken. */
-+		return -ENODEV;
++		return -ENODEV;		/* I added this which 5.10.235 didn't have because I think it's better to fail fast. */
 +	}
 +
  	spin_lock_irqsave(&chip->reg_lock, flags);
@@ -1494,10 +1458,10 @@
 -
 - */
 -
- static const struct snd_pcm_hardware snd_wss_playback =
+ static struct snd_pcm_hardware snd_wss_playback =
  {
  	.info =			(SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_INTERLEAVED |
-@@ -1475,25 +1321,12 @@
+@@ -1505,20 +1375,6 @@
  
  	runtime->hw = snd_wss_playback;
  
@@ -1518,14 +1482,7 @@
  	snd_pcm_limit_isa_dma_size(chip->dma1, &runtime->hw.buffer_bytes_max);
  	snd_pcm_limit_isa_dma_size(chip->dma1, &runtime->hw.period_bytes_max);
  
- 	if (chip->claim_dma) {
--		if ((err = chip->claim_dma(chip, chip->dma_private_data, chip->dma1)) < 0)
-+		err = chip->claim_dma(chip, chip->dma_private_data, chip->dma1);
-+		if (err < 0)
- 			return err;
- 	}
- 
-@@ -1517,23 +1350,12 @@
+@@ -1547,18 +1403,6 @@
  
  	runtime->hw = snd_wss_capture;
  
@@ -1544,14 +1501,7 @@
  	snd_pcm_limit_isa_dma_size(chip->dma2, &runtime->hw.buffer_bytes_max);
  	snd_pcm_limit_isa_dma_size(chip->dma2, &runtime->hw.period_bytes_max);
  
- 	if (chip->claim_dma) {
--		if ((err = chip->claim_dma(chip, chip->dma_private_data, chip->dma2)) < 0)
-+		err = chip->claim_dma(chip, chip->dma_private_data, chip->dma2);
-+		if (err < 0)
- 			return err;
- 	}
- 
-@@ -1567,28 +1389,6 @@
+@@ -1597,28 +1441,6 @@
  	return 0;
  }
  
@@ -1580,7 +1530,7 @@
  /* lowlevel suspend callback for CS4231 */
  static void snd_wss_suspend(struct snd_wss *chip)
  {
-@@ -1599,8 +1399,6 @@
+@@ -1630,8 +1452,6 @@
  	for (reg = 0; reg < 32; reg++)
  		chip->image[reg] = snd_wss_in(chip, reg);
  	spin_unlock_irqrestore(&chip->reg_lock, flags);
@@ -1589,7 +1539,7 @@
  }
  
  /* lowlevel resume callback for CS4231 */
-@@ -1608,10 +1406,7 @@
+@@ -1639,10 +1459,7 @@
  {
  	int reg;
  	unsigned long flags;
@@ -1600,7 +1550,7 @@
  	snd_wss_mce_up(chip);
  	spin_lock_irqsave(&chip->reg_lock, flags);
  	for (reg = 0; reg < 32; reg++) {
-@@ -1623,40 +1418,13 @@
+@@ -1654,40 +1471,13 @@
  			break;
  		}
  	}
@@ -1641,7 +1591,7 @@
  	if (chip->irq >= 0) {
  		disable_irq(chip->irq);
  		if (!(chip->hwshare & WSS_HWSHARE_IRQ))
-@@ -1766,7 +1534,6 @@
+@@ -1797,7 +1587,6 @@
  
  int snd_wss_create(struct snd_card *card,
  		      unsigned long port,
@@ -1649,7 +1599,7 @@
  		      int irq, int dma1, int dma2,
  		      unsigned short hardware,
  		      unsigned short hwshare,
-@@ -1793,16 +1560,6 @@
+@@ -1824,16 +1613,6 @@
  		return -EBUSY;
  	}
  	chip->port = port;
@@ -1666,7 +1616,7 @@
  	if (!(hwshare & WSS_HWSHARE_IRQ))
  		if (request_irq(irq, snd_wss_interrupt, 0,
  				"WSS", (void *) chip)) {
-@@ -1824,17 +1581,9 @@
+@@ -1854,17 +1633,9 @@
  		snd_wss_free(chip);
  		return -EBUSY;
  	}
@@ -1687,7 +1637,7 @@
  
  	/* global setup */
  	if (snd_wss_probe(chip) < 0) {
-@@ -1843,14 +1592,6 @@
+@@ -1873,14 +1644,6 @@
  	}
  	snd_wss_init(chip);
  
@@ -1702,7 +1652,7 @@
  	/* Register device */
  	err = snd_device_new(card, SNDRV_DEV_LOWLEVEL, chip, &ops);
  	if (err < 0) {
-@@ -1858,11 +1599,9 @@
+@@ -1888,11 +1651,9 @@
  		return err;
  	}
  
@@ -1714,7 +1664,7 @@
  
  	*rchip = chip;
  	return 0;
-@@ -1902,8 +1641,6 @@
+@@ -1936,8 +1697,6 @@
  	/* global setup */
  	pcm->private_data = chip;
  	pcm->info_flags = 0;
@@ -1723,13 +1673,3 @@
  	if (chip->hardware != WSS_HW_INTERWAVE)
  		pcm->info_flags |= SNDRV_PCM_INFO_JOINT_DUPLEX;
  	strcpy(pcm->name, snd_wss_chip_id(chip));
-@@ -1934,7 +1671,8 @@
- 	tid.card = chip->card->number;
- 	tid.device = device;
- 	tid.subdevice = 0;
--	if ((err = snd_timer_new(chip->card, "CS4231", &tid, &timer)) < 0)
-+	err = snd_timer_new(chip->card, "CS4231", &tid, &timer);
-+	if (err < 0)
- 		return err;
- 	strcpy(timer->name, snd_wss_chip_id(chip));
- 	timer->private_data = chip;

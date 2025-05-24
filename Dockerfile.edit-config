@@ -1,41 +1,38 @@
 # To be able to read all the commands outputs as they get executed:
 # sudo docker compose --progress=plain -f docker-compose.edit-config.yml build
 ARG KERNEL_BRANCH
+ARG KERNEL_NAME
+ARG KERNEL_TAR
+ARG KERNEL_URL
 ARG KERNEL_VERSION
+ARG TCL_DOCKER_IMAGE_VERSION
 ARG TCL_VERSION
-FROM linichotmailca/tcl-core-x86:$TCL_VERSION-x86 AS final
+FROM linichotmailca/tcl-core-x86:$TCL_DOCKER_IMAGE_VERSION-x86 AS final
 ARG KERNEL_BRANCH
+ARG KERNEL_NAME
+ARG KERNEL_TAR
+ARG KERNEL_URL
 ARG KERNEL_VERSION
 ARG TCL_VERSION
 ENV HOME_TC=/home/tc
 WORKDIR $HOME_TC
-# TCZs required to build the kernel
-RUN tce-load -wi compiletc
-RUN tce-load -wi ncursesw-dev
-RUN tce-load -wi perl5
-RUN tce-load -wi bash
-RUN tce-load -wi bc
-RUN tce-load -wi advcomp
-# openssl-dev is required when building the kernel
-RUN tce-load -wi openssl-dev
-# curl works better than wget to get the core.gz and kernel.tar.xz from the net.
-RUN tce-load -wi curl
+COPY --chown=tc:staff tools/tce-load-requirements.sh $HOME_TC/tools/tce-load-requirements.sh
+RUN $HOME_TC/tools/tce-load-requirements.sh $KERNEL_BRANCH
 # Getting kernel.tar.xz
-ENV KERNEL_VERSION_NAME=linux-$KERNEL_VERSION
-ENV KERNEL_SOURCE_PATH=$HOME_TC/$KERNEL_VERSION_NAME
-ENV KERNEL_TAR_XZ=$KERNEL_VERSION_NAME.tar.xz
-RUN curl --remote-name https://cdn.kernel.org/pub/linux/kernel/$KERNEL_BRANCH/$KERNEL_TAR_XZ
-RUN tar x -f $KERNEL_TAR_XZ
+ENV KERNEL_SOURCE_PATH=$HOME_TC/$KERNEL_NAME
+RUN curl --remote-name $KERNEL_URL
+RUN tar x -f $KERNEL_TAR
 WORKDIR $KERNEL_SOURCE_PATH
 # NOTE 1: IMPORTANT! the .config file has to be owned by tc:staff otherwise the make commands
 # don't load it because they don't have the permission and they default to a default
 # config which breaks in a confusing way.
 COPY --chown=tc:staff .config ./.config
 COPY --chown=tc:staff .config-v5.x ./.config-v5.x
-COPY --chown=tc:staff tools/pick-config.sh ./
-RUN ./pick-config.sh $KERNEL_BRANCH
+COPY --chown=tc:staff .config-v4.x ./.config-v4.x
+COPY --chown=tc:staff tools/pick-config.sh $HOME_TC/tools/pick-config.sh
+RUN $HOME_TC/tools/pick-config.sh $KERNEL_BRANCH
 # Then if you docker compose build you'll be able to docker exec -it into it and move around or
 # docker cp files out of it.
-COPY echo_sleep /
-ENTRYPOINT ["/bin/sh", "/echo_sleep"]
+COPY --chown=tc:staff tools/echo_sleep.sh $HOME_TC/tools/echo_sleep.sh
+ENTRYPOINT ["/bin/sh", "/home/tc/tools/echo_sleep.sh"]
 

@@ -1,7 +1,6 @@
---- a/sound/isa/cs423x/cs4236_lib.c	2025-01-23 11:23:05.000000000 -0500
-+++ b/sound/isa/cs423x/cs4236_lib.c	2025-04-21 04:44:24.954460825 -0400
-@@ -1,70 +1,22 @@
- // SPDX-License-Identifier: GPL-2.0-or-later
+--- a/sound/isa/cs423x/cs4236_lib.c	2025-03-18 10:02:02.000000000 -0400
++++ b/sound/isa/cs423x/cs4236_lib.c	2025-04-20 05:17:28.806463080 -0400
+@@ -1,9 +1,16 @@
  /*
   *  Copyright (c) by Jaroslav Kysela <perex@perex.cz>
 - *  Routines for control of CS4235/4236B/4237B/4238B/4239 chips
@@ -20,6 +19,8 @@
   *
   *  Bugs:
   *     -----
+@@ -24,61 +31,6 @@
+  *
   */
  
 -/*
@@ -51,7 +52,7 @@
 - *     D7: consumer serial port enable (CS4237B,CS4238B)
 - *     D6: channels status block reset (CS4237B,CS4238B)
 - *     D5: user bit in sub-frame of digital audio data (CS4237B,CS4238B)
-- *     D4: validity bit in sub-frame of digital audio data (CS4237B,CS4238B)
+- *     D4: validity bit bit in sub-frame of digital audio data (CS4237B,CS4238B)
 - * 
 - *  C5  lower channel status (digital serial data description) (CS4237B,CS4238B)
 - *     D7-D6: first two bits of category code
@@ -80,7 +81,7 @@
  #include <linux/io.h>
  #include <linux/delay.h>
  #include <linux/init.h>
-@@ -76,10 +28,6 @@
+@@ -90,10 +42,6 @@
  #include <sound/initval.h>
  #include <sound/tlv.h>
  
@@ -88,10 +89,10 @@
 - *
 - */
 -
- static const unsigned char snd_cs4236_ext_map[18] = {
+ static unsigned char snd_cs4236_ext_map[18] = {
  	/* CS4236_LEFT_LINE */		0xff,
  	/* CS4236_RIGHT_LINE */		0xff,
-@@ -101,21 +49,34 @@
+@@ -115,21 +63,34 @@
  	/* CS4236_RIGHT_WAVE */		0xbf
  };
  
@@ -121,27 +122,27 @@
 +	unsigned char revision_b = 0b10100000;
 +	unsigned char revision_cd = 0b11000000;
 +	unsigned char revision_e = 0b11100000;
-+	dev_dbg(card->dev, "Version=0x%x\n", read_version);
++	snd_printdd("Version=0x%x\n", read_version);
 +	read_chip_id = value & chip_id_mask;
 +	read_version = value & version_mask;
 +	if (read_chip_id == cs4237b_chip_id)
-+		dev_dbg(card->dev, "Chip id matches CS4237B\n");
++		snd_printdd("Chip id matches CS4237B\n");
 +	else
-+		dev_dbg(card->dev, "Chip id unknonwn\n");
++		snd_printdd("Chip id unknonwn\n");
 +	if (read_version == revision_a)
-+		dev_dbg(card->dev, "Version matches revision a\n");
++		snd_printdd("Version matches revision a\n");
 +	else if (read_version == revision_b)
-+		dev_dbg(card->dev, "Version matches revision b\n");
++		snd_printdd("Version matches revision b\n");
 +	else if (read_version == revision_cd)
-+		dev_dbg(card->dev, "Version matches revision c/d\n");
++		snd_printdd("Version matches revision c/d\n");
 +	else if (read_version == revision_e)
-+		dev_dbg(card->dev, "Version matches revision e\n");
++		snd_printdd("Version matches revision e\n");
 +	else
-+		dev_dbg(card->dev, "Version has unknown revision\n");
++		snd_printdd("Version has unknown revision\n");
  }
  
  /*
-@@ -201,7 +162,6 @@
+@@ -215,7 +176,6 @@
  	spin_unlock_irqrestore(&chip->reg_lock, flags);
  }
  
@@ -149,7 +150,7 @@
  
  static void snd_cs4236_suspend(struct snd_wss *chip)
  {
-@@ -213,8 +173,6 @@
+@@ -227,8 +187,6 @@
  		chip->image[reg] = snd_wss_in(chip, reg);
  	for (reg = 0; reg < 18; reg++)
  		chip->eimage[reg] = snd_cs4236_ext_in(chip, CS4236_I23VAL(reg));
@@ -158,7 +159,7 @@
  	spin_unlock_irqrestore(&chip->reg_lock, flags);
  }
  
-@@ -239,104 +197,75 @@
+@@ -253,41 +211,31 @@
  	}
  	for (reg = 0; reg < 18; reg++)
  		snd_cs4236_ext_out(chip, CS4236_I23VAL(reg), chip->eimage[reg]);
@@ -180,10 +181,9 @@
 - * It just an equivalent to the snd_wss_create() then.
 +/* Modified the snd_cs4236_create to work without control port/device
   */
--int snd_cs4236_create(struct snd_card *card,
--		      unsigned long port,
+ int snd_cs4236_create(struct snd_card *card,
+ 		      unsigned long port,
 -		      unsigned long cport,
-+int snd_cs4236_create(struct snd_card *card, unsigned long port,
  		      int irq, int dma1, int dma2,
  		      unsigned short hardware,
  		      unsigned short hwshare,
@@ -200,18 +200,14 @@
  		hardware = WSS_HW_DETECT3;
 -
 -	err = snd_wss_create(card, port, cport,
--			     irq, dma1, dma2, hardware, hwshare, &chip);
 +	/* I removed the control port. I probably could have set it to -1 instead, but
 +	 * I didn't test setting it to -1 only and using "alsactl init CS4237B" and
 +	 * alsamixer to set the volumes to 100.  */
-+	err = snd_wss_create(card, port, irq, dma1, dma2, hardware, hwshare, &chip);
++	err = snd_wss_create(card, port,
+ 			     irq, dma1, dma2, hardware, hwshare, &chip);
  	if (err < 0)
  		return err;
- 
- 	if ((chip->hardware & WSS_HW_CS4236B_MASK) == 0) {
--		dev_dbg(card->dev, "chip is not CS4236+, hardware=0x%x\n",
--			chip->hardware);
-+		dev_dbg(card->dev, "chip is not CS4236+, hardware=0x%x\n", chip->hardware);
+@@ -298,56 +246,40 @@
  		*rchip = chip;
  		return 0;
  	}
@@ -219,43 +215,33 @@
 -	{
 -		int idx;
 -		for (idx = 0; idx < 8; idx++)
--			dev_dbg(card->dev, "CD%i = 0x%x\n",
--				idx, inb(chip->cport + idx));
+-			snd_printk(KERN_DEBUG "CD%i = 0x%x\n",
+-				   idx, inb(chip->cport + idx));
 -		for (idx = 0; idx < 9; idx++)
--			dev_dbg(card->dev, "C%i = 0x%x\n",
--				idx, snd_cs4236_ctrl_in(chip, idx));
+-			snd_printk(KERN_DEBUG "C%i = 0x%x\n",
+-				   idx, snd_cs4236_ctrl_in(chip, idx));
 -	}
 -#endif
 -	if (cport < 0x100 || cport == SNDRV_AUTO_PORT) {
--		dev_err(card->dev, "please, specify control port for CS4236+ chips\n");
+-		snd_printk(KERN_ERR "please, specify control port "
+-			   "for CS4236+ chips\n");
+-		snd_device_free(card, chip);
 -		return -ENODEV;
 -	}
 -	ver1 = snd_cs4236_ctrl_in(chip, 1);
 -	ver2 = snd_cs4236_ext_in(chip, CS4236_VERSION);
--	dev_dbg(card->dev, "CS4236: [0x%lx] C1 (version) = 0x%x, ext = 0x%x\n",
--		cport, ver1, ver2);
+-	snd_printdd("CS4236: [0x%lx] C1 (version) = 0x%x, ext = 0x%x\n",
+-			cport, ver1, ver2);
 -	if (ver1 != ver2) {
--		dev_err(card->dev,
--			"CS4236+ chip detected, but control port 0x%lx is not valid\n",
--			cport);
+-		snd_printk(KERN_ERR "CS4236+ chip detected, but "
+-			   "control port 0x%lx is not valid\n", cport);
+-		snd_device_free(card, chip);
 -		return -ENODEV;
 -	}
 -	snd_cs4236_ctrl_out(chip, 0, 0x00);
 -	snd_cs4236_ctrl_out(chip, 2, 0xff);
 -	snd_cs4236_ctrl_out(chip, 3, 0x00);
 -	snd_cs4236_ctrl_out(chip, 4, 0x80);
--	reg = ((IEC958_AES1_CON_PCM_CODER & 3) << 6) |
--	      IEC958_AES0_CON_EMPHASIS_NONE;
--	snd_cs4236_ctrl_out(chip, 5, reg);
--	snd_cs4236_ctrl_out(chip, 6, IEC958_AES1_CON_PCM_CODER >> 2);
--	snd_cs4236_ctrl_out(chip, 7, 0x00);
--	/*
--	 * 0x8c for C8 is valid for Turtle Beach Malibu - the IEC-958
--	 * output is working with this setup, other hardware should
--	 * have different signal paths and this value should be
--	 * selectable in the future
--	 */
--	snd_cs4236_ctrl_out(chip, 8, 0x8c);
 +
 +	/* According to the CS4237B documentation:
 +	 * Version / Chip ID (C1)
@@ -283,7 +269,18 @@
 +	version = snd_cs4236_ext_in(chip, CS4236_VERSION);
 +	decode_version(card, version);
 +
-+	reg = ((IEC958_AES1_CON_PCM_CODER & 3) << 6) | IEC958_AES0_CON_EMPHASIS_NONE;
+ 	reg = ((IEC958_AES1_CON_PCM_CODER & 3) << 6) |
+ 	      IEC958_AES0_CON_EMPHASIS_NONE;
+-	snd_cs4236_ctrl_out(chip, 5, reg);
+-	snd_cs4236_ctrl_out(chip, 6, IEC958_AES1_CON_PCM_CODER >> 2);
+-	snd_cs4236_ctrl_out(chip, 7, 0x00);
+-	/*
+-	 * 0x8c for C8 is valid for Turtle Beach Malibu - the IEC-958
+-	 * output is working with this setup, other hardware should
+-	 * have different signal paths and this value should be
+-	 * selectable in the future
+-	 */
+-	snd_cs4236_ctrl_out(chip, 8, 0x8c);
  	chip->rate_constraint = snd_cs4236_xrate;
  	chip->set_playback_format = snd_cs4236_playback_format;
  	chip->set_capture_format = snd_cs4236_capture_format;
@@ -294,13 +291,7 @@
  
  	/* initialize extended registers */
  	for (reg = 0; reg < sizeof(snd_cs4236_ext_map); reg++)
--		snd_cs4236_ext_out(chip, CS4236_I23VAL(reg),
--				   snd_cs4236_ext_map[reg]);
-+		snd_cs4236_ext_out(chip, CS4236_I23VAL(reg), snd_cs4236_ext_map[reg]);
- 
- 	/* initialize compatible but more featured registers */
- 	snd_wss_out(chip, CS4231_LEFT_INPUT, 0x40);
-@@ -446,44 +375,34 @@
+@@ -462,44 +394,34 @@
    .get = snd_cs4236_get_singlec, .put = snd_cs4236_put_singlec, \
    .private_value = reg | (shift << 8) | (mask << 16) | (invert << 24) }
  
@@ -353,25 +344,25 @@
  }
  
  #define CS4236_DOUBLE(xname, xindex, left_reg, right_reg, shift_left, shift_right, mask, invert) \
-@@ -933,16 +852,7 @@
+@@ -949,16 +871,7 @@
  	
  	spin_lock_irqsave(&chip->reg_lock, flags);
  	ucontrol->value.integer.value[0] = chip->image[CS4231_ALT_FEATURE_1] & 0x02 ? 1 : 0;
 -#if 0
--	dev_dbg(chip->card->dev,
--		"get valid: ALT = 0x%x, C3 = 0x%x, C4 = 0x%x, C5 = 0x%x, C6 = 0x%x, C8 = 0x%x\n",
--		snd_wss_in(chip, CS4231_ALT_FEATURE_1),
--		snd_cs4236_ctrl_in(chip, 3),
--		snd_cs4236_ctrl_in(chip, 4),
--		snd_cs4236_ctrl_in(chip, 5),
--		snd_cs4236_ctrl_in(chip, 6),
--		snd_cs4236_ctrl_in(chip, 8));
+-	printk(KERN_DEBUG "get valid: ALT = 0x%x, C3 = 0x%x, C4 = 0x%x, "
+-	       "C5 = 0x%x, C6 = 0x%x, C8 = 0x%x\n",
+-			snd_wss_in(chip, CS4231_ALT_FEATURE_1),
+-			snd_cs4236_ctrl_in(chip, 3),
+-			snd_cs4236_ctrl_in(chip, 4),
+-			snd_cs4236_ctrl_in(chip, 5),
+-			snd_cs4236_ctrl_in(chip, 6),
+-			snd_cs4236_ctrl_in(chip, 8));
 -#endif
-+	dev_dbg(chip->card->dev, "get valid: ALT=0x%x\n", snd_wss_in(chip, CS4231_ALT_FEATURE_1));
++	snd_printdd("get valid: ALT=0x%x\n", snd_wss_in(chip, CS4231_ALT_FEATURE_1));
  	spin_unlock_irqrestore(&chip->reg_lock, flags);
  	return 0;
  }
-@@ -962,25 +872,11 @@
+@@ -978,25 +891,11 @@
  	val = (chip->image[CS4231_ALT_FEATURE_1] & ~0x0e) | (0<<2) | (enable << 1);
  	change = val != chip->image[CS4231_ALT_FEATURE_1];
  	snd_wss_out(chip, CS4231_ALT_FEATURE_1, val);
@@ -380,20 +371,20 @@
  	udelay(100);
 -	val &= ~0x40;
 -	snd_cs4236_ctrl_out(chip, 4, val);
-+	dev_dbg(chip->card->dev, "set valid: ALT=0x%x\n", snd_wss_in(chip, CS4231_ALT_FEATURE_1));
++	snd_printdd("set valid: ALT=0x%x\n", snd_wss_in(chip, CS4231_ALT_FEATURE_1));
  	spin_unlock_irqrestore(&chip->reg_lock, flags);
  	snd_wss_mce_down(chip);
  	mutex_unlock(&chip->mce_mutex);
 -
 -#if 0
--	dev_dbg(chip->card->dev,
--		"set valid: ALT = 0x%x, C3 = 0x%x, C4 = 0x%x, C5 = 0x%x, C6 = 0x%x, C8 = 0x%x\n",
--		snd_wss_in(chip, CS4231_ALT_FEATURE_1),
--		snd_cs4236_ctrl_in(chip, 3),
--		snd_cs4236_ctrl_in(chip, 4),
--		snd_cs4236_ctrl_in(chip, 5),
--		snd_cs4236_ctrl_in(chip, 6),
--		snd_cs4236_ctrl_in(chip, 8));
+-	printk(KERN_DEBUG "set valid: ALT = 0x%x, C3 = 0x%x, C4 = 0x%x, "
+-	       "C5 = 0x%x, C6 = 0x%x, C8 = 0x%x\n",
+-			snd_wss_in(chip, CS4231_ALT_FEATURE_1),
+-			snd_cs4236_ctrl_in(chip, 3),
+-			snd_cs4236_ctrl_in(chip, 4),
+-			snd_cs4236_ctrl_in(chip, 5),
+-			snd_cs4236_ctrl_in(chip, 6),
+-			snd_cs4236_ctrl_in(chip, 8));
 -#endif
  	return change;
  }
