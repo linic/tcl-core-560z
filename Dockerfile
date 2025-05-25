@@ -74,6 +74,7 @@ COPY --chown=tc:staff cs4237b/patches-5.10.235 $CS4237B_PATCHES/patches-5.10.235
 COPY --chown=tc:staff cs4237b/patches-4.4.302-cip97 $CS4237B_PATCHES/patches-4.4.302-cip97
 ENV CACHE=$HOME_TC/cache
 COPY --chown=tc:staff cache/$KERNEL_VERSION $CACHE/$KERNEL_VERSION
+COPY --chown=tc:staff cache/rootfs $CACHE/rootfs
 # Use the cache or build new bzImage, modules and .tcz files.
 COPY --chown=tc:staff tools/* $TOOLS/
 RUN $TOOLS/make-bzImage-modules-tczs.sh $VERSION_QUINTUPLET $LOCALVERSION $CIP_NUMBER

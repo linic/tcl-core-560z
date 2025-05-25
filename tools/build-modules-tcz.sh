@@ -10,9 +10,11 @@
 ##################################################################
 
 HOME_TC=/home/tc
+CACHE=$HOME_TC/cache
 CORE_TEMP_PATH=$HOME_TC/coretmp
 CORE_TEMP_MODULES_PATH=$CORE_TEMP_PATH/lib/modules
 INSTALL_MOD_PATH=$HOME_TC/modules
+ROOTFS_CACHE=$CACHE/rootfs
 TOOLS=/home/tc/tools
 
 ARGUMENT_ERROR_MESSAGE="RELEASE_VERSION, KERNEL_ID, KERNEL_NAME are needed. For example: ./build-modules-tcz.sh 4.4.302-cip97.16.1 4.4.302-cip97-tinycore-560z linux-cip-4.4.302-cip97"
@@ -35,6 +37,23 @@ cd $HOME_TC/$KERNEL_NAME
 mkdir $INSTALL_MOD_PATH
 make INSTALL_MOD_PATH=$INSTALL_MOD_PATH modules_install
 
+if [ -f $ROOTFS_CACHE/rootfs.gz ]; then
+  echo "Using rootfs.gz from the cache."
+  # Using the cache, it's possible to force the use of a custom rootfs.gz.
+  # Getting, editing and unpacking the official core.gz as explained in
+  # https://wiki.tinycorelinux.net/doku.php?id=wiki:custom_kernel&s[]=custom&s[]=kernel
+  if [ -d $CORE_TEMP_PATH ]; then
+    sudo rm -rf $CORE_TEMP_PATH
+  fi
+  mkdir -pv $CORE_TEMP_PATH
+  cd $CORE_TEMP_PATH
+  zcat $ROOTFS_CACHE/rootfs.gz | sudo cpio -i -H newc -d
+  # Removing the official modules since they can't be used with our custom kernel
+  if [ -d $CORE_TEMP_MODULES_PATH ]; then sudo rm -rf $CORE_TEMP_MODULES_PATH; fi
+  # For visual feedback of what has been extracted.
+  ls $CORE_TEMP_PATH
+  cd $HOME_TC/$KERNEL_NAME
+fi
 # Continuing, editing and unpacking the official core.gz as explained in
 # https://wiki.tinycorelinux.net/doku.php?id=wiki:custom_kernel&s[]=custom&s[]=kernel
 # Adding our custom built modules which will work with our custom kernel
