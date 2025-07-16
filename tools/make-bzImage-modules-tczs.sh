@@ -138,3 +138,4 @@ else
   rm -v .config-$KERNEL_BRANCH
 fi
 
+$TOOLS/package-core-gz.sh $RELEASE_VERSION $KERNEL_ID $KERNEL_NAME

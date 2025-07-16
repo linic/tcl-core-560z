@@ -25,7 +25,7 @@ CIP_NUMBER=97
 # Note: for 16.0beta1, core.gz doesn't exist yet. So rootfs.gz must be used.
 # See the Dockerfile for more details about how the modules are replaced.
 CORE_GZ=rootfs.gz
-ITERATION=3
+ITERATION=4
 # This refers to the LOCALVERSION variable in the kernel .config file.
 LOCALVERSION=-tinycore-560z
 KERNEL_VERSION_TRIPLET=4.4.302

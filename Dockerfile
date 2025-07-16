@@ -40,26 +40,7 @@ ENV TOOLS=/home/tc/tools
 WORKDIR $HOME_TC
 COPY --chown=tc:staff tools/tce-load-requirements.sh $TOOLS/
 RUN $TOOLS/tce-load-requirements.sh $KERNEL_BRANCH
-# There are 2 ways to replace the modules in core.gz:
-# 1. get core.gz, unpack it and remove the modules since it is rootfs.gz + modules.gz
-# 2. get rootfs.gz directly
-# Note: for 16.0beta1, core.gz doesn't exist yet. So rootfs.gz must be used.
-# For release versions, core.gz exists and can be used. The code below works with both.
-# Getting core.gz for later
-RUN wget http://tinycorelinux.net/$TCL_VERSION/x86/$TCL_RELEASE_TYPE/distribution_files/$CORE_GZ
-RUN wget http://tinycorelinux.net/$TCL_VERSION/x86/$TCL_RELEASE_TYPE/distribution_files/$CORE_GZ.md5.txt
-RUN md5sum -c $CORE_GZ.md5.txt
-# Getting, editing and unpacking the official core.gz as explained in
-# https://wiki.tinycorelinux.net/doku.php?id=wiki:custom_kernel&s[]=custom&s[]=kernel
 ENV CORE_TEMP_PATH=$HOME_TC/coretmp
-RUN mkdir $CORE_TEMP_PATH
-WORKDIR $CORE_TEMP_PATH
-RUN zcat $HOME_TC/$CORE_GZ | sudo cpio -i -H newc -d
-# Removing the official modules since they can't be used with our custom kernel
-ENV CORE_TEMP_MODULES_PATH=$CORE_TEMP_PATH/lib/modules
-RUN if [ -d $CORE_TEMP_MODULES_PATH ]; then sudo rm -rf $CORE_TEMP_MODULES_PATH; fi
-# For visual feedback of what has been extracted.
-RUN ls $CORE_TEMP_PATH
 
 # NOTE 1: IMPORTANT! the .config file has to be owned by tc:staff otherwise the make commands
 # don't load it because they don't have the permission and they default to a default
