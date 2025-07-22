@@ -21,8 +21,8 @@ AUTHOR="linic@hotmail.ca"
 # bar with apps at the bottom of the desktop.
 full()
 {
-  tce-load -w Xvesa flwm_topside aterm abar
-  tce-load -i Xvesa flwm_topside aterm abar
+  tce-load -w Xvesa flwm_topside aterm wbar
+  tce-load -i Xvesa flwm_topside aterm wbar
 }
 
 # Load the minimal experience without the abar and no terminal within the desktop.

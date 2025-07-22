@@ -9,7 +9,7 @@ ARG KERNEL_NAME
 ARG KERNEL_TAR
 ARG KERNEL_URL
 ARG KERNEL_VERSION
-ARG LOCALVERSION
+ARG LOCAL_VERSION
 ARG RELEASE_DIRECTORY
 ARG RELEASE_VERSION
 ARG TCL_DOCKER_IMAGE_VERSION
@@ -29,7 +29,7 @@ ARG KERNEL_NAME
 ARG KERNEL_TAR
 ARG KERNEL_URL
 ARG KERNEL_VERSION
-ARG LOCALVERSION
+ARG LOCAL_VERSION
 ARG RELEASE_DIRECTORY
 ARG RELEASE_VERSION
 ARG TCL_RELEASE_TYPE
@@ -58,13 +58,8 @@ COPY --chown=tc:staff cache/$KERNEL_VERSION $CACHE/$KERNEL_VERSION
 COPY --chown=tc:staff cache/rootfs $CACHE/rootfs
 # Use the cache or build new bzImage, modules and .tcz files.
 COPY --chown=tc:staff tools/* $TOOLS/
-RUN $TOOLS/make-bzImage-modules-tczs.sh $VERSION_QUINTUPLET $LOCALVERSION $CIP_NUMBER
+RUN $TOOLS/make-bzImage-modules-tczs.sh $VERSION_QUINTUPLET $LOCAL_VERSION $CORE_GZ $CIP_NUMBER
 
-# Generate the custom core.gz file as explained in 
-# https://wiki.tinycorelinux.net/doku.php?id=wiki:custom_kernel&s[]=custom&s[]=kernel
-WORKDIR $CORE_TEMP_PATH
-RUN  sudo find | sudo cpio -o -H newc | gzip -9 > $RELEASE_DIRECTORY/core-$RELEASE_VERSION.gz
-RUN ls -larth $RELEASE_DIRECTORY
 WORKDIR $HOME_TC
 ENTRYPOINT ["/bin/sh", "/home/tc/tools/echo_sleep.sh"]
 

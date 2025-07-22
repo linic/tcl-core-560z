@@ -18,17 +18,17 @@
 
 # Only set the CIP_NUMBER when your kernel is an SLTS CIP.
 # For example 4.4.302-cip97
-CIP_NUMBER=97
+# CIP_NUMBER=97
 # There are 2 ways to replace the modules in core.gz:
 # 1. get core.gz, unpack it and remove the modules since it is rootfs.gz + modules.gz
 # 2. get rootfs.gz directly
 # Note: for 16.0beta1, core.gz doesn't exist yet. So rootfs.gz must be used.
 # See the Dockerfile for more details about how the modules are replaced.
 CORE_GZ=rootfs.gz
-ITERATION=4
-# This refers to the LOCALVERSION variable in the kernel .config file.
-LOCALVERSION=-tinycore-560z
-KERNEL_VERSION_TRIPLET=4.4.302
+ITERATION=15
+# This refers to the LOCAL_VERSION variable in the kernel .config file.
+LOCAL_VERSION=-tinycore-560z
+KERNEL_VERSION_TRIPLET=5.10.240
 TCL_MAJOR_VERSION=16
 TCL_RELEASE_TYPE=release
 TCL_DOCKER_IMAGE_VERSION=16.x
@@ -42,8 +42,8 @@ trim:
 	tools/trim.sh ${KERNEL_VERSION_TRIPLET}.${TCL_MAJOR_VERSION}.${ITERATION} ${TCL_RELEASE_TYPE} ${CORE_GZ}
 
 build:
-	tools/build-all.sh ${KERNEL_VERSION_TRIPLET}.${TCL_MAJOR_VERSION}.${ITERATION} ${TCL_RELEASE_TYPE} ${CORE_GZ} ${LOCALVERSION} ${TCL_DOCKER_IMAGE_VERSION} ${CIP_NUMBER}
+	tools/build-all.sh ${KERNEL_VERSION_TRIPLET}.${TCL_MAJOR_VERSION}.${ITERATION} ${TCL_RELEASE_TYPE} ${CORE_GZ} ${LOCAL_VERSION} ${TCL_DOCKER_IMAGE_VERSION} ${CIP_NUMBER}
 
 publish:
-	tools/publish.sh ${KERNEL_VERSION_TRIPLET}.${TCL_MAJOR_VERSION}.${ITERATION} ${LOCALVERSION} ${CIP_NUMBER}
+	tools/publish.sh ${KERNEL_VERSION_TRIPLET}.${TCL_MAJOR_VERSION}.${ITERATION} ${LOCAL_VERSION} ${CIP_NUMBER}
 

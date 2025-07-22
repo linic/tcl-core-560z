@@ -13,7 +13,7 @@
 # Source (include) functions from tools/common.sh
 . "$(dirname "$0")/common.sh"
 
-ARGUMENT_ERROR_MESSAGE="Valid common version numbers, LOCALVERSION and, optionally a CIP number. For example: ./publish.sh 4.4.302.16.1 -tinycore-560z 97"
+ARGUMENT_ERROR_MESSAGE="Valid common version numbers, LOCAL_VERSION and, optionally a CIP number. For example: ./publish.sh 4.4.302.16.1 -tinycore-560z 97"
 
 if [ ! $# -ge 2 ]; then
   echo "$ARGUMENT_ERROR_MESSAGE"
@@ -21,13 +21,15 @@ if [ ! $# -ge 2 ]; then
 fi
 
 COMMON_VERSION_NUMBERS=$1
-LOCALVERSION=$2
+LOCAL_VERSION=$2
 
-CIP_NUMBER=$3
-if [ ! -z CIP_NUMBER ]; then
-  if ! check_is_digit 1 $CIP_NUMBER; then
-    echo "CIP_NUMBER is wrong: $CIP_NUMBER. For example, enter 97 if your tar name has something like 4.4.302-cip97."
-    exit 2
+if [ $# -ge 3 ]; then
+  CIP_NUMBER=$3
+  if [ ! -z CIP_NUMBER ]; then
+    if ! check_is_digit 1 $CIP_NUMBER; then
+      echo "CIP_NUMBER is wrong: $CIP_NUMBER. For example, enter 97 if your tar name has something like 4.4.302-cip97."
+      exit 4
+    fi
   fi
 fi
 
@@ -57,7 +59,7 @@ if [ ! -z $CIP_NUMBER ]; then
   KERNEL_VERSION=$KERNEL_VERSION-cip$CIP_NUMBER
 fi
 
-KERNEL_ID=$KERNEL_VERSION$LOCALVERSION
+KERNEL_ID=$KERNEL_VERSION$LOCAL_VERSION
 RELEASE_VERSION=$KERNEL_VERSION.$TCL_MAJOR_VERSION_NUMBER.$ITERATION_NUMBER
 HOST_RELEASE_DIRECTORY=./release/$RELEASE_VERSION
 

@@ -17,7 +17,7 @@
 
 HOME_TC=/home/tc
 
-REQUIRED_ARGUMENTS="VERSION_QUINTUPLET, TCL_RELEASE_TYPE, core.gz or rootfs.gz, LOCALVERSION, TCL_DOCKER_IMAGE_VERSION, (optional) CIP_NUMBER are required."
+REQUIRED_ARGUMENTS="VERSION_QUINTUPLET, TCL_RELEASE_TYPE, core.gz or rootfs.gz, LOCAL_VERSION, TCL_DOCKER_IMAGE_VERSION, (optional) CIP_NUMBER are required."
 CALL_EXAMPLE="./build-all.sh 4.4.302.7.1 release rooftfs.gz -tinycore-560z 16.x 97"
 ARGUMENT_ERROR_MESSAGE="$REQUIRED_ARGUMENTS For example: $CALL_EXAMPLE"
 
@@ -40,15 +40,17 @@ if [ $CORE_GZ != "core.gz" ] && [ $CORE_GZ != "rootfs.gz" ]; then
   exit 3
 fi
 
-LOCALVERSION=$4
+LOCAL_VERSION=$4
 
 TCL_DOCKER_IMAGE_VERSION=$5
 
-CIP_NUMBER=$6
-if [ ! -z CIP_NUMBER ]; then
-  if ! check_is_digit 1 $CIP_NUMBER; then
-    echo "CIP_NUMBER is wrong: $CIP_NUMBER. For example, enter 97 if your tar name has something like 4.4.302-cip97."
-    exit 4
+if [ $# -ge 6 ]; then
+  CIP_NUMBER=$6
+  if [ ! -z CIP_NUMBER ]; then
+    if ! check_is_digit 1 $CIP_NUMBER; then
+      echo "CIP_NUMBER is wrong: $CIP_NUMBER. For example, enter 97 if your tar name has something like 4.4.302-cip97."
+      exit 4
+    fi
   fi
 fi
 
@@ -178,7 +180,7 @@ if [ ! -z $CIP_NUMBER ]; then
   KERNEL_TAR=$KERNEL_NAME.tar.gz
   KERNEL_URL=https://git.kernel.org/pub/scm/linux/kernel/git/cip/linux-cip.git/snapshot/$KERNEL_TAR
 fi
-KERNEL_ID=$KERNEL_VERSION$LOCALVERSION
+KERNEL_ID=$KERNEL_VERSION$LOCAL_VERSION
 RELEASE_VERSION=$KERNEL_VERSION.$TCL_MAJOR_VERSION_NUMBER.$ITERATION_NUMBER
 RELEASE_DIRECTORY=$HOME_TC/release/$RELEASE_VERSION
 HOST_RELEASE_DIRECTORY=./release/$RELEASE_VERSION
@@ -204,7 +206,7 @@ if [ ! -f docker-compose.yml ] || ! grep -q "$KERNEL_URL" docker-compose.yml || 
     "       - KERNEL_TAR=$KERNEL_TAR\n"\
     "       - KERNEL_URL=$KERNEL_URL\n"\
     "       - KERNEL_VERSION=$KERNEL_VERSION\n"\
-    "       - LOCALVERSION=$LOCALVERSION\n"\
+    "       - LOCAL_VERSION=$LOCAL_VERSION\n"\
     "       - RELEASE_DIRECTORY=$RELEASE_DIRECTORY\n"\
     "       - RELEASE_VERSION=$RELEASE_VERSION\n"\
     "       - TCL_DOCKER_IMAGE_VERSION=$TCL_DOCKER_IMAGE_VERSION\n"\
@@ -241,40 +243,49 @@ cd $HOST_RELEASE_DIRECTORY
 sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/alsa-modules-$KERNEL_ID.tcz ./
 md5sum ./alsa-modules-$KERNEL_ID.tcz > ./alsa-modules-$KERNEL_ID.tcz.md5.txt
 cat ./alsa-modules-$KERNEL_ID.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$CACHE/alsa-modules-$KERNEL_ID.tcz $HOST_CACHE/
 
 sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/ipv6-netfilter-$KERNEL_ID.tcz ./
 md5sum ./ipv6-netfilter-$KERNEL_ID.tcz > ./ipv6-netfilter-$KERNEL_ID.tcz.md5.txt
 cat ./ipv6-netfilter-$KERNEL_ID.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$CACHE/ipv6-netfilter-$KERNEL_ID.tcz $HOST_CACHE/
 
 sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/net-modules-$KERNEL_ID.tcz ./
 md5sum ./net-modules-$KERNEL_ID.tcz > ./net-modules-$KERNEL_ID.tcz.md5.txt
 cat ./net-modules-$KERNEL_ID.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$CACHE/net-modules-$KERNEL_ID.tcz $HOST_CACHE/
 
 sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/parport-modules-$KERNEL_ID.tcz ./
 md5sum ./parport-modules-$KERNEL_ID.tcz > ./parport-modules-$KERNEL_ID.tcz.md5.txt
 cat ./parport-modules-$KERNEL_ID.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$CACHE/parport-modules-$KERNEL_ID.tcz $HOST_CACHE/
 
 sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/pcmcia-modules-$KERNEL_ID.tcz ./
 md5sum ./pcmcia-modules-$KERNEL_ID.tcz > ./pcmcia-modules-$KERNEL_ID.tcz.md5.txt
 cat ./pcmcia-modules-$KERNEL_ID.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$CACHE/pcmcia-modules-$KERNEL_ID.tcz $HOST_CACHE/
 
 sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/usb-modules-$KERNEL_ID.tcz ./
 md5sum ./usb-modules-$KERNEL_ID.tcz > ./usb-modules-$KERNEL_ID.tcz.md5.txt
 cat ./usb-modules-$KERNEL_ID.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$CACHE/usb-modules-$KERNEL_ID.tcz $HOST_CACHE/
 
 sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/wireless-$KERNEL_ID.tcz ./
 md5sum ./wireless-$KERNEL_ID.tcz > ./wireless-$KERNEL_ID.tcz.md5.txt
 cat ./wireless-$KERNEL_ID.tcz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$CACHE/wireless-$KERNEL_ID.tcz $HOST_CACHE/
 
 sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/bzImage-$RELEASE_VERSION ./
 md5sum ./bzImage-$RELEASE_VERSION > ./bzImage-$RELEASE_VERSION.md5.txt
 cat ./bzImage-$RELEASE_VERSION.md5.txt
+sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/bzImage-$RELEASE_VERSION $HOST_CACHE/
 
 sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/core-$RELEASE_VERSION.gz ./
 md5sum ./core-$RELEASE_VERSION.gz > ./core-$RELEASE_VERSION.gz.md5.txt
 cat ./core-$RELEASE_VERSION.gz.md5.txt
+sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/core-$RELEASE_VERSION.gz $HOST_CACHE/
 
-sudo docker cp tcl-core-560z-main-1:$CACHE/* $HOST_CACHE/*
+sudo docker cp tcl-core-560z-main-1:$CACHE/.config.md5.txt $HOST_CACHE/
 
 cd ../..
 sudo docker compose --progress=plain -f docker-compose.yml down

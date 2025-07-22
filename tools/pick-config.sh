@@ -11,6 +11,9 @@
 # (like 5.10.235) which use the .config-v5.x file.
 ##################################################################
 
+set -e
+trap 'echo "Error on line $LINENO"' ERR
+
 ERROR_MESSAGE="Please enter the linux kernel branch (v5.x or v6.)"
 if [ ! $# -eq 1 ]; then
   echo $ERROR_MESSAGE

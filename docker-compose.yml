@@ -4,23 +4,23 @@ services:
       context: .
       args:
         - CORE_GZ=rootfs.gz
-        - CIP_NUMBER=97
-        - ITERATION_NUMBER=4
-        - KERNEL_BRANCH=v4.x
-        - KERNEL_ID=4.4.302-cip97-tinycore-560z
-        - KERNEL_NAME=linux-cip-4.4.302-cip97
-        - KERNEL_TAR=linux-cip-4.4.302-cip97.tar.gz
-        - KERNEL_URL=https://git.kernel.org/pub/scm/linux/kernel/git/cip/linux-cip.git/snapshot/linux-cip-4.4.302-cip97.tar.gz
-        - KERNEL_VERSION=4.4.302-cip97
-        - LOCALVERSION=-tinycore-560z
-        - RELEASE_DIRECTORY=/home/tc/release/4.4.302-cip97.16.4
-        - RELEASE_VERSION=4.4.302-cip97.16.4
+        - CIP_NUMBER=
+        - ITERATION_NUMBER=15
+        - KERNEL_BRANCH=v5.x
+        - KERNEL_ID=5.10.240-tinycore-560z
+        - KERNEL_NAME=linux-5.10.240
+        - KERNEL_TAR=linux-5.10.240.tar.xz
+        - KERNEL_URL=https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-5.10.240.tar.xz
+        - KERNEL_VERSION=5.10.240
+        - LOCAL_VERSION=-tinycore-560z
+        - RELEASE_DIRECTORY=/home/tc/release/5.10.240.16.15
+        - RELEASE_VERSION=5.10.240.16.15
         - TCL_DOCKER_IMAGE_VERSION=16.x
         - TCL_RELEASE_TYPE=release
         - TCL_VERSION=16.x
-        - VERSION_QUINTUPLET=4.4.302.16.4
+        - VERSION_QUINTUPLET=5.10.240.16.15
       dockerfile: Dockerfile
       tags:
-        - linichotmailca/tcl-core-560z:4.4.302-cip97.16.4
+        - linichotmailca/tcl-core-560z:5.10.240.16.15
         - linichotmailca/tcl-core-560z:latest
 

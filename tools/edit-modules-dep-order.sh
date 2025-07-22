@@ -1,4 +1,8 @@
 #!/bin/sh
+
+set -e
+trap 'echo "Error on line $LINENO"' ERR
+
 # Replaces 'build/' with 'kernel/' and '.ko' with '.ko.gz' in modules.dep
 # See https://github.com/on-prem/tinycore-kernel, copied from there: "The modules.dep file should point to
 # .ko.gz kernel modules, but Linux compiles them as .ko by default. The Makefile in this repo gzips all

@@ -97,7 +97,7 @@ if [ ! -z $CIP_NUMBER ]; then
   KERNEL_TAR=$KERNEL_NAME.tar.gz
   KERNEL_URL=https://git.kernel.org/pub/scm/linux/kernel/git/cip/linux-cip.git/snapshot/$KERNEL_TAR
 fi
-KERNEL_ID=$KERNEL_VERSION$LOCALVERSION
+KERNEL_ID=$KERNEL_VERSION$LOCAL_VERSION
 RELEASE_VERSION=$KERNEL_VERSION.$TCL_MAJOR_VERSION_NUMBER.$ITERATION_NUMBER
 
 if [ ! -f docker-compose.edit-config.yml ] || ! grep -q "$KERNEL_TAR_URL" docker-compose.edit-config.yml|| ! grep -q "RELEASE_VERSION=$RELEASE_VERSION" docker-compose.edit-config.yml || ! grep -q "TCL_DOCKER_IMAGE_VERSION=$TCL_DOCKER_IMAGE_VERSION" docker-compose.yml; then

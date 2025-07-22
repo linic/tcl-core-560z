@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -e
+trap 'echo "Error on line $LINENO"' ERR
+
 find . -type f -name "*.ko" | while read -r file; do
     dir=$(dirname "$file")
     base=$(basename "$file" .ko)
