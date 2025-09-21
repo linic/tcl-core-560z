@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/x86 5.10.240 Kernel Configuration
+# Linux/x86 5.10.244 Kernel Configuration
 #
 CONFIG_CC_VERSION_TEXT="gcc (GCC) 14.2.0"
 CONFIG_CC_IS_GCC=y
@@ -336,8 +336,7 @@ CONFIG_X86_REROUTE_FOR_BROKEN_BOOT_IRQS=y
 
 CONFIG_X86_LEGACY_VM86=y
 CONFIG_VM86=y
-CONFIG_X86_16BIT=y
-CONFIG_X86_ESPFIX32=y
+# CONFIG_X86_16BIT is not set
 CONFIG_X86_IOPL_IOPERM=y
 # CONFIG_TOSHIBA is not set
 # CONFIG_X86_REBOOTFIXUPS is not set
