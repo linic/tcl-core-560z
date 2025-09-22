@@ -18,6 +18,9 @@ It looks like a working version of a driver for the CS4237B specifically on the 
 long time. All the workarounds I found on the net didn't work for me. More details in another section below.
 I added code changes for 5.10.235 and patches for 6.12.11 and 5.10.235.
 
+## Releases Details
+Each release artifacts are built using docker. The docker images which have built them are available on [hub.docker.com at linichotmailca/tcl-core-560z](https://hub.docker.com/r/linichotmailca/tcl-core-560z).
+
 ### Which `NAME-modules-KERNEL.tcz` files are generated?
 #### Replacement for `alsa-modules-KERNEL.tcz` referred to by [`alsa.tcz.dep`](http://tinycorelinux.net/15.x/x86/tcz/alsa.tcz.dep)
 - alsa-modules-6.13.7-tinycore-560z.tcz
