@@ -113,6 +113,19 @@ Using 5.10.235.16.6 it's possible to get wifi working with an rtl8192 chip. Kern
 sometime after 6.1.2 timeout on my 560z when it is the time to authenticate and associate
 with the access point.
 
+## 5.10.244.16.2
+Adding back the
+```
+CONFIG_UNIX=y
+CONFIG_UNIX_SCM=y
+```
+Fixed the error which startd in 5.10.240.16.15 and the wifi works again.
+
+## 5.10.240.16.15
+In my quest to reduce the size of the kernel, I removed too much and wifi doesn't work in this
+version. `wpa_supplicant` shows error `l2_packet_init: socket (PF_PACKET): Address family not supported by protocol`
+The USB to Ethernet adapter is still working well though.
+
 ## tools
 See the [tools](./tools/) for scripts which automate many steps
 to get and install the files generated in the docker containers.
