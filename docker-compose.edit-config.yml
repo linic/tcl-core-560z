@@ -1,16 +1,16 @@
 services:
   main:
-    image: linichotmailca/tcl-core-560z-edit-config:5.10.246.16.1
+    image: linichotmailca/tcl-core-560z-edit-config:5.10.247.16.3
     build:
       context: .
       args:
         - KERNEL_BRANCH=v5.x
-        - KERNEL_ID=5.10.246
-        - KERNEL_NAME=linux-5.10.246
-        - KERNEL_TAR=linux-5.10.246.tar.xz
-        - KERNEL_URL=https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-5.10.246.tar.xz
-        - KERNEL_VERSION=5.10.246
-        - RELEASE_VERSION=5.10.246.16.1
+        - KERNEL_ID=5.10.247
+        - KERNEL_NAME=linux-5.10.247
+        - KERNEL_TAR=linux-5.10.247.tar.xz
+        - KERNEL_URL=https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-5.10.247.tar.xz
+        - KERNEL_VERSION=5.10.247
+        - RELEASE_VERSION=5.10.247.16.3
         - TCL_DOCKER_IMAGE_VERSION=16.x
         - TCL_VERSION=16.x
       dockerfile: Dockerfile.edit-config

@@ -25,10 +25,10 @@
 # Note: for 16.0beta1, core.gz doesn't exist yet. So rootfs.gz must be used.
 # See the Dockerfile for more details about how the modules are replaced.
 CORE_GZ=rootfs.gz
-ITERATION=1
+ITERATION=3
 # This refers to the LOCAL_VERSION variable in the kernel .config file.
 LOCAL_VERSION=-tinycore-560z
-KERNEL_VERSION_TRIPLET=5.10.246
+KERNEL_VERSION_TRIPLET=5.10.247
 TCL_MAJOR_VERSION=16
 TCL_RELEASE_TYPE=release
 TCL_DOCKER_IMAGE_VERSION=16.x

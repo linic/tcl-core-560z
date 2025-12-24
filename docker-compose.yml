@@ -5,22 +5,22 @@ services:
       args:
         - CORE_GZ=rootfs.gz
         - CIP_NUMBER=
-        - ITERATION_NUMBER=1
+        - ITERATION_NUMBER=3
         - KERNEL_BRANCH=v5.x
-        - KERNEL_ID=5.10.246-tinycore-560z
-        - KERNEL_NAME=linux-5.10.246
-        - KERNEL_TAR=linux-5.10.246.tar.xz
-        - KERNEL_URL=https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-5.10.246.tar.xz
-        - KERNEL_VERSION=5.10.246
+        - KERNEL_ID=5.10.247-tinycore-560z
+        - KERNEL_NAME=linux-5.10.247
+        - KERNEL_TAR=linux-5.10.247.tar.xz
+        - KERNEL_URL=https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-5.10.247.tar.xz
+        - KERNEL_VERSION=5.10.247
         - LOCAL_VERSION=-tinycore-560z
-        - RELEASE_DIRECTORY=/home/tc/release/5.10.246.16.1
-        - RELEASE_VERSION=5.10.246.16.1
+        - RELEASE_DIRECTORY=/home/tc/release/5.10.247.16.3
+        - RELEASE_VERSION=5.10.247.16.3
         - TCL_DOCKER_IMAGE_VERSION=16.x
         - TCL_RELEASE_TYPE=release
         - TCL_VERSION=16.x
-        - VERSION_QUINTUPLET=5.10.246.16.1
+        - VERSION_QUINTUPLET=5.10.247.16.3
       dockerfile: Dockerfile
       tags:
-        - linichotmailca/tcl-core-560z:5.10.246.16.1
+        - linichotmailca/tcl-core-560z:5.10.247.16.3
         - linichotmailca/tcl-core-560z:latest
 

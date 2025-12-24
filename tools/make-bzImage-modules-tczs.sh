@@ -159,12 +159,14 @@ else
 
   # Put the md5 of the .config in the cache to know how the bzImage and modules were compiled.
   cp $KERNEL_SOURCE_PATH/.config $CACHE/$KERNEL_VERSION/.config
-  cd $CACHE/$KERNEL_VERSION
-  md5sum .config > .config.md5.txt 
-  rm -v .config
 fi
 
 $TOOLS/package-core-gz.sh $RELEASE_VERSION $KERNEL_ID $KERNEL_NAME $CORE_GZ
+# Important to generate the md5sum only after core.gz has been packaged because it checks if the config
+# in the cache matches the current config and if so, then it uses the modules from the core.gz in the cache.
+cd $CACHE/$KERNEL_VERSION
+md5sum .config > .config.md5.txt
+rm -v .config
 echo "Here is what's in the release directory $RELEASE_DIRECTORY:"
 ls -larth $RELEASE_DIRECTORY
 echo "make-bzImage-modules-tczs.sh should have completed successfully at this point."

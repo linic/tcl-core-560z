@@ -19,7 +19,9 @@ CACHE=$HOME_TC/cache
 CORE_READY_FILES_PATH=$HOME_TC/core-ready
 CORE_READY_MODULES_PATH=$CORE_READY_FILES_PATH/lib/modules
 CORE_TEMP_PATH=$HOME_TC/coretmp
+CACHED_CORE_TEMP_PATH=$HOME_TC/cached-core-tmp
 CORE_TEMP_MODULES_PATH=$CORE_TEMP_PATH/lib/modules
+CACHED_CORE_TEMP_MODULES_PATH=$CACHED_CORE_TEMP_PATH/lib/modules
 INSTALL_MOD_PATH=$HOME_TC/modules
 ROOTFS_CACHE=$CACHE/rootfs
 TOOLS=/home/tc/tools
@@ -75,13 +77,24 @@ else
   if [ -d $CORE_TEMP_MODULES_PATH ]; then sudo rm -rf $CORE_TEMP_MODULES_PATH; fi
 fi
 
-# Copying the module files which are not in *modules-$KERNEL_ID.tcz files to core.gz.
-sudo mkdir -p $CORE_TEMP_MODULES_PATH
-if [ -d $CORE_READY_MODULES_PATH ]; then
-  sudo mv $CORE_READY_MODULES_PATH/* $CORE_TEMP_MODULES_PATH/
-  echo "Checking if something is left in $CORE_READY_MODULES_PATH"
-  sudo ls $CORE_READY_MODULES_PATH
-  echo "Nothing should be left here since it was moved to $CORE_TEMP_MODULES_PATH/"
+cd $CACHE/$KERNEL_VERSION
+if md5sum -c $CACHE/$KERNEL_VERSION/.config.md5.txt; then
+  echo "$KERNEL_VERSION is available from the $CACHE/$KERNEL_VERSION/"
+  mkdir -pv $CACHED_CORE_TEMP_PATH
+  cd $CACHED_CORE_TEMP_PATH
+  zcat $CACHE/$KERNEL_VERSION/core-$KERNEL_VERSION | sudo cpio -i -H newc -d
+  if [ -d $CACHED_CORE_TEMP_MODULES_PATH ]; then
+    sudo mv $CACHED_CORE_TEMP_MODULES_PATH/* $CORE_TEMP_MODULES_PATH/
+  fi
+else
+  # Copying the module files which are not in *modules-$KERNEL_ID.tcz files to core.gz.
+  sudo mkdir -p $CORE_TEMP_MODULES_PATH
+  if [ -d $CORE_READY_MODULES_PATH ]; then
+    sudo mv $CORE_READY_MODULES_PATH/* $CORE_TEMP_MODULES_PATH/
+    echo "Checking if something is left in $CORE_READY_MODULES_PATH"
+    sudo ls $CORE_READY_MODULES_PATH
+    echo "Nothing should be left here since it was moved to $CORE_TEMP_MODULES_PATH/"
+  fi
 fi
 
 # create the kernel.tclocal
