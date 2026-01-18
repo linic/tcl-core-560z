@@ -28,7 +28,7 @@ CORE_GZ=rootfs.gz
 ITERATION=1
 # This refers to the LOCAL_VERSION variable in the kernel .config file.
 LOCAL_VERSION=-tinycore-560z
-KERNEL_VERSION_TRIPLET=6.18.5
+KERNEL_VERSION_TRIPLET=6.12.65
 TCL_MAJOR_VERSION=17
 # Change release_candidates back to release when 17.0 will be released.
 TCL_RELEASE_TYPE=release_candidates
