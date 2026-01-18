@@ -124,7 +124,7 @@ echo "Requirements are met. Building image to edit the linux kernel .config file
 
 if ! sudo docker compose --progress=plain -f docker-compose.edit-config.yml build; then
   echo "Docker build to edit the .config failed!"
-  exot 20
+  exit 20
 fi
 
 sudo docker compose --progress=plain -f docker-compose.edit-config.yml up --detach
