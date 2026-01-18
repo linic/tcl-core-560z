@@ -46,7 +46,7 @@ ENV CORE_TEMP_PATH=$HOME_TC/coretmp
 # don't load it because they don't have the permission and they default to a default
 # config which breaks in a confusing way.
 ENV KERNEL_CONFIGS=$HOME_TC/kernel_configs
-COPY --chown=tc:staff .config $KERNEL_CONFIGS/.config
+COPY --chown=tc:staff .config-v6.x $KERNEL_CONFIGS/.config-v6.x
 COPY --chown=tc:staff .config-v5.x $KERNEL_CONFIGS/.config-v5.x
 COPY --chown=tc:staff .config-v4.x $KERNEL_CONFIGS/.config-v4.x
 ENV CS4237B_PATCHES=$HOME_TC/cs4237b

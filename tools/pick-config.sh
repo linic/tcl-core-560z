@@ -25,25 +25,26 @@ if [ $VERSION != "v4.x" ] && [ $VERSION != "v5.x" ] && [ $VERSION != "v6.x" ]; t
   echo "Only v4.x, v5.x or v6.x are supported for now."
   exit 2
 fi
-if [ ! .config-v4 ] && [ ! .config-v5 ] && [ ! .config ]; then
+if [ ! .config-v4.x ] && [ ! .config-v5.x ] && [ ! .config-v6.x ]; then
   echo "Please make sure the directory you're running is the "\
-    "extracted linux kernel directory in which .config-v4, .config-v5 "\
-    ".config from https://github.com/linic/tcl-core-560z "\
+    "extracted linux kernel directory in which .config-v4.x, .config-v5.x "\
+    ".config-v6.x from https://github.com/linic/tcl-core-560z "\
     "where copied because this script needs to pick which .config "\
     "to apply."
   exit 3
 fi
 if [ $VERSION == "v4.x" ]; then
-  rm -v .config
+  rm -v .config-v6.x
   rm -v .config-v5.x
   mv -v .config-v4.x .config
 elif [ $VERSION == "v5.x" ]; then
-  rm -v .config
+  rm -v .config-v6.x
   rm -v .config-v4.x
   mv -v .config-v5.x .config
 elif [ $VERSION == "v6.x" ]; then
   rm -v .config-v5.x
   rm -v .config-v4.x
+  mv -v .config-v6.x .config
 fi
 exit 0
 

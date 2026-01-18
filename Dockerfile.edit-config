@@ -26,7 +26,7 @@ WORKDIR $KERNEL_SOURCE_PATH
 # NOTE 1: IMPORTANT! the .config file has to be owned by tc:staff otherwise the make commands
 # don't load it because they don't have the permission and they default to a default
 # config which breaks in a confusing way.
-COPY --chown=tc:staff .config ./.config
+COPY --chown=tc:staff .config-v6.x ./.config-v6.x
 COPY --chown=tc:staff .config-v5.x ./.config-v5.x
 COPY --chown=tc:staff .config-v4.x ./.config-v4.x
 COPY --chown=tc:staff tools/pick-config.sh $HOME_TC/tools/pick-config.sh
