@@ -1,0 +1,65 @@
+--- a/include/sound/wss.h
++++ b/include/sound/wss.h
+@@ -45,7 +45,6 @@
+ #define WSS_HW_AD1848		0x0802	/* AD1848 chip */
+ #define WSS_HW_CS4248		0x0803	/* CS4248 chip */
+ #define WSS_HW_CMI8330		0x0804	/* CMI8330 chip */
+-#define WSS_HW_THINKPAD		0x0805	/* Thinkpad 360/750/755 */
+ /* compatible, but clones */
+ #define WSS_HW_INTERWAVE     0x1000	/* InterWave chip */
+ #define WSS_HW_OPL3SA2       0x1101	/* OPL3-SA2 chip, similar to cs4231 */
+@@ -61,11 +60,14 @@
+ #define AD1848_THINKPAD_CTL_PORT2		0x15e9
+ #define AD1848_THINKPAD_CS4248_ENABLE_BIT	0x02
+ 
++/* defines for wss registers masks */
++// Since IA4 is set to 1, we're using MODE2 which makes the CS4237B appear like a CS4231
++// super set which is compatible with the CS4232.
++#define WSS_IA01234_MASK 0x1f /* 0001 1111 mask on IA0 to IA4 in WSSbase+0, R0 */
++
+ struct snd_wss {
+ 	unsigned long port;		/* base i/o port */
+ 	struct resource *res_port;
+-	unsigned long cport;		/* control base i/o port (CS4236) */
+-	struct resource *res_cport;
+ 	int irq;			/* IRQ line */
+ 	int dma1;			/* playback DMA */
+ 	int dma2;			/* record DMA */
+@@ -73,10 +75,7 @@
+ 	unsigned short mode;		/* see to WSS_MODE_XXXX */
+ 	unsigned short hardware;	/* see to WSS_HW_XXXX */
+ 	unsigned short hwshare;		/* shared resources */
+-	unsigned short single_dma:1,	/* forced single DMA mode (GUS 16-bit */
+-					/* daughter board) or dma1 == dma2 */
+-		       ebus_flag:1,	/* SPARC: EBUS present */
+-		       thinkpad_flag:1;	/* Thinkpad CS4248 needs extra help */
++	unsigned char ebus_flag:1;	/* SPARC: EBUS present */
+ 
+ 	struct snd_card *card;
+ 	struct snd_pcm *pcm;
+@@ -86,8 +85,7 @@
+ 
+ 	unsigned char image[32];	/* registers image */
+ 	unsigned char eimage[32];	/* extended registers image */
+-	unsigned char cimage[16];	/* control registers image */
+-	int mce_bit;
++	unsigned char mce_bit; /* keep track of the mode change enable state */
+ 	int calibrate_mute;
+ 	int sw_3d_bit;
+ 	unsigned int p_dma_size;
+@@ -134,7 +132,6 @@
+ 
+ int snd_wss_create(struct snd_card *card,
+ 		      unsigned long port,
+-		      unsigned long cport,
+ 		      int irq, int dma1, int dma2,
+ 		      unsigned short hardware,
+ 		      unsigned short hwshare,
+@@ -147,7 +144,6 @@
+ 
+ int snd_cs4236_create(struct snd_card *card,
+ 		      unsigned long port,
+-		      unsigned long cport,
+ 		      int irq, int dma1, int dma2,
+ 		      unsigned short hardware,
+ 		      unsigned short hwshare,

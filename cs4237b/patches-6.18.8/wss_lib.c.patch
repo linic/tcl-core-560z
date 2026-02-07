@@ -1,0 +1,1541 @@
+--- a/sound/isa/wss/wss_lib.c
++++ b/sound/isa/wss/wss_lib.c
+@@ -1,13 +1,18 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+  *  Copyright (c) by Jaroslav Kysela <perex@perex.cz>
+- *  Routines for control of CS4231(A)/CS4232/InterWave & compatible chips
+  *
+- *  Bugs:
+- *     - sometimes record brokes playback with WSS portion of
+- *       Yamaha OPL3-SA3 chip
+- *     - CS4231 (GUS MAX) - still trouble with occasional noises
+- *			  - broken initialization?
++ *  Edited by linic@hotmail.ca.
++ *  Routines for control of CS4237B for the ThinkPad 560Z
++ *
++ *  Note:
++ *  - Removed control port since my 560z doesn't expose the control device.
++ *  - Removed many hardware checks since my 560z is successfully detected as a WSS_HW_CS4237B.
++ *  - After the module has loaded, run "sudo alsactl init CS4237B" and then "alsamixer" to up the volumes.
++ *    "sudo alsactl store CS4237B" can be used to save the alsa settings including the volumes.
++ *    After a reboot, "sudo alsactl init CS4237B" and "sudo alsactl restore CS4237B" are needed for
++ *    sound to be audible.
++ *
+  */
+ 
+ #include <linux/delay.h>
+@@ -30,10 +35,6 @@
+ MODULE_DESCRIPTION("Routines for control of CS4231(A)/CS4232/InterWave & compatible chips");
+ MODULE_LICENSE("GPL");
+ 
+-#if 0
+-#define SNDRV_DEBUG_MCE
+-#endif
+-
+ /*
+  *  Some variables
+  */
+@@ -158,192 +159,214 @@
+ 	return inb(chip->port + offset);
+ }
+ 
+-static void snd_wss_wait(struct snd_wss *chip)
++/* Wait for the INIT bit to be 0. */
++static void snd_wss_wait_delay(struct snd_wss *chip, unsigned char delay_microseconds)
+ {
+-	int timeout;
++	unsigned char i0, timeout;
++	bool is_init_set;
+ 
+-	for (timeout = 250;
+-	     timeout > 0 && (wss_inb(chip, CS4231P(REGSEL)) & CS4231_INIT);
+-	     timeout--)
+-		udelay(100);
++	i0 = wss_inb(chip, CS4231P(REGSEL));
++	is_init_set = i0 & CS4231_INIT;
++	for (timeout = 250; timeout > 0 && is_init_set; timeout--) {
++		udelay(delay_microseconds);
++		i0 = wss_inb(chip, CS4231P(REGSEL));
++		is_init_set = i0 & CS4231_INIT;
++	}
++	if (is_init_set) {
++		dev_err(chip->card->dev, "snd_wss_wait - INIT is still 1. I0=0x%x\n", i0);
++	}
++}
++
++static void snd_wss_wait(struct snd_wss *chip)
++{
++	/* This loop timeouts roughly 0.025 second. */
++	snd_wss_wait_delay(chip, 100);
+ }
+ 
++/* Functionally similar to snd_wss_out, but the waiting time between each INIT check
++ * is 10 microseconds instead of 100 microseconds. I'm not sure why, but since it works
++ * I stopped investigating. */
+ static void snd_wss_dout(struct snd_wss *chip, unsigned char reg,
+ 			 unsigned char value)
+ {
+-	int timeout;
+-
+-	for (timeout = 250;
+-	     timeout > 0 && (wss_inb(chip, CS4231P(REGSEL)) & CS4231_INIT);
+-	     timeout--)
+-		udelay(10);
++	/* This loop timeouts roughly after 0.0025 second. */
++	snd_wss_wait_delay(chip, 10);
+ 	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | reg);
+ 	wss_outb(chip, CS4231P(REG), value);
+ 	mb();
+ }
+ 
+-void snd_wss_out(struct snd_wss *chip, unsigned char reg, unsigned char value)
++/* Select an index register and write a new value to it. */
++void snd_wss_out(struct snd_wss *chip, unsigned char index_register_address, unsigned char index_register_new_value)
+ {
+ 	snd_wss_wait(chip);
+-#ifdef CONFIG_SND_DEBUG
+-	if (wss_inb(chip, CS4231P(REGSEL)) & CS4231_INIT)
+-		dev_dbg(chip->card->dev,
+-			"out: auto calibration time out - reg = 0x%x, value = 0x%x\n",
+-			reg, value);
+-#endif
+-	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | reg);
+-	wss_outb(chip, CS4231P(REG), value);
+-	chip->image[reg] = value;
++	/* CS4231P(REGSEL) is 0 which is R0, the Index Address Register.
++	 * This writes the value of reg on it keeping the last known value of mce_bit.
++	 * This is only useful to change IA0 to IA4 and change the values on the Index Data Register. */
++	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | index_register_address);
++	/* CS4231P(REG) is 1 which is R1, the Index Data Register.
++	 * During initialization and software power down
++	 * of the WSS Codec, this register can NOT be
++	 * written and is always read 10000000 (80h) */
++	wss_outb(chip, CS4231P(REG), index_register_new_value);
++	/* Save the latest written state in chip->image. */
++	chip->image[index_register_address] = index_register_new_value;
++	/* mb() prevents loads and stores being reordered across this point */
+ 	mb();
+-	dev_dbg(chip->card->dev, "codec out - reg 0x%x = 0x%x\n",
+-		chip->mce_bit | reg, value);
+ }
+ EXPORT_SYMBOL(snd_wss_out);
+ 
++/* Read value from an index register "reg" and return it. */
+ unsigned char snd_wss_in(struct snd_wss *chip, unsigned char reg)
+ {
++	unsigned char index_register_value;
+ 	snd_wss_wait(chip);
+-#ifdef CONFIG_SND_DEBUG
+-	if (wss_inb(chip, CS4231P(REGSEL)) & CS4231_INIT)
+-		dev_dbg(chip->card->dev,
+-			"in: auto calibration time out - reg = 0x%x\n", reg);
+-#endif
+ 	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | reg);
+ 	mb();
+ 	return wss_inb(chip, CS4231P(REG));
+ }
++
++/* Make this function available to other drivers. */
+ EXPORT_SYMBOL(snd_wss_in);
+ 
+-void snd_cs4236_ext_out(struct snd_wss *chip, unsigned char reg,
+-			unsigned char val)
+-{
+-	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | 0x17);
++/* Write a value on an extended register. */
++void snd_cs4236_ext_out(struct snd_wss *chip,
++		unsigned char extended_register_address,
++		unsigned char new_value)
++{
++	/* 0x17 selects I23
++	 * Extended Register Access (I23)
++	 * D7  D6  D5  D4  D3   D2  D1  D0
++	 * XA3 XA2 XA1 XA0 XRAE XA4 res ACF
++	 * Table 16. WSS Extended Register Control
++	 * +--------+---------------------------------------+
++	 * | Index  | Register Name                         |
++	 * +--------+---------------------------------------+
++	 * | X0     | Left LINE Alternate Volume            |
++	 * | X1     | Right LINE Alternate Volume           |
++	 * | X2     | Left MIC Volume                       |
++	 * | X3     | Right MIC Volume                      |
++	 * | X4     | Synthesis and Input Mixer Control     |
++	 * | X5     | Right Input Mixer Control             |
++	 * | X6     | Left FM Synthesis Volume              |
++	 * | X7     | Right FM Synthesis Volume             |
++	 * | X8     | Left DSP Serial Port Volume           |
++	 * | X9     | Right DSP Serial Port Volume          |
++	 * | X10    | Right Loopback Monitor Volume         |
++	 * | X11    | DAC Mute and IFSE Enable              |
++	 * | X12    | Independent ADC Sample Freq.          |
++	 * | X13    | Independent DAC Sample Freq.          |
++	 * | X14    | Left Master Digital Audio Volume      |
++	 * | X15    | Right Master Digital Audio Volume     |
++	 * | X16    | Left Wavetable Serial Port Volume     |
++	 * | X17    | Right Wavetable Serial Port Volume    |
++	 * | X18-X24| Reserved                              |
++	 * | X25    | Chip Version and ID                   |
++	 * +--------+---------------------------------------+ 
++	 * CS4231 Control Register Bit Descriptions
++	 * +----------+---------------------------------------------+
++	 * | Bit Name | Description                                 |
++	 * +----------+---------------------------------------------+
++	 * | ACF      | ADPCM Capture Freeze. When set,             |
++	 * |          | the capture ADPCM accumulator               |
++	 * |          | and step size are frozen. This bit          |
++	 * |          | must be set to zero for adaptation to       |
++	 * |          | continue. This bit is used when             |
++	 * |          | pausing a ADPCM capture stream.             |
++	 * +----------+---------------------------------------------+
++	 * | res      | Reserved. Must write 0. Could read          |
++	 * |          | as 0 or 1.                                  |
++	 * +----------+---------------------------------------------+
++	 * | XA4      | Extended Register Address bit 4.            |
++	 * |          | Along with XA3-XA0, enables ac-             |
++	 * |          | cess to extended registers X16,             |
++	 * |          | X17, and X25. MODE 3 only.                  |
++	 * +----------+---------------------------------------------+
++	 * | XRAE     | Extended Register Access Enable.            |
++	 * |          | Setting this bit converts this register     |
++	 * |          | from the extended address register          |
++	 * |          | to the extended data register. To con-      |
++	 * |          | vert back to an address register, R0        |
++	 * |          | must be written. MODE 3 only.               |
++	 * +----------+---------------------------------------------+
++	 * | XA3-XA0  | Extended Register Address. Along            |
++	 * |          | with XA4, sets the register number          |
++	 * |          | (X0-X17+X25) accessed when                  |
++	 * |          | XRAE is set. MODE 3 only. See the           |
++	 * |          | WSS Extended Register section for           |
++	 * |          | more details.                               |
++	 * +----------+---------------------------------------------+
++	 * I23 acts
++	 * as both the extended address and extended data
++	 * register. These extended registers are only avail-
++	 * able when in MODE 3.
++	 * Accessing the X registers requires writing the
++	 * register address to I23 with XRAE set. When
++	 * XRAE is set, I23 changes from an address regis-
++	 * ter to a data register. Subsequent accesses to I23
++	 * access the extended data register. To convert I23
++	 * back to the extended address register, R0 must
++	 * be written which internally clears XRAE. As-
++	 * suming the part is in MODE 3, the following
++	 * steps access the X registers:
++	 * 1. Write 17h to R0 (to access I23).
++	 * R1 is now the extended address register.
++	 * 2. Write the desired X register address to R1
++	 * with XRAE = 1.
++	 * R1 is now the extended data register.
++	 * 3. Write/Read X register data from R1.
++	 * To read/write a different X register:
++	 * 4. Write 17h to R0 again. (resets XRAE)
++	 * R1 is now the extended address register.
++	 * 5. Write the new X register address to R1
++	 * with XRAE = 1.
++	 * R1 is now the new extended data register.
++	 * 6. Read/Write new X register data from R1.
++	 * */
++	unsigned char i23_address = 0x17;
++	unsigned char xa3_xa0 = extended_register_address & 0xf0;
++	unsigned char xa4 = extended_register_address & 0x04;
++	unsigned char xrae = extended_register_address & 0x08;
++	unsigned char xa4_xa0 = xa4 << 2 | xa3_xa0 >> 4;
++	/* I'm wondering what happens to TRD... TRD can change and is documented as:
++	 * Transfer Request Disable: This bit,
++	 * when set, causes DMA transfers to
++	 * cease when the INT bit of the Status
++	 * Register (R2) is set. Independent for
++	 * playback and capture interrupts.
++	 * For now, sound works on my 560z so I didn't investigate further. */
++	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | i23_address);
+ 	wss_outb(chip, CS4231P(REG),
+-		 reg | (chip->image[CS4236_EXT_REG] & 0x01));
+-	wss_outb(chip, CS4231P(REG), val);
+-	chip->eimage[CS4236_REG(reg)] = val;
+-#if 0
+-	dev_dbg(chip->card->dev, "ext out : reg = 0x%x, val = 0x%x\n", reg, val);
+-#endif
++			extended_register_address | (chip->image[CS4236_EXT_REG] & 0x01));
++	wss_outb(chip, CS4231P(REG), new_value);
++	chip->eimage[CS4236_REG(extended_register_address)] = new_value;
+ }
+ EXPORT_SYMBOL(snd_cs4236_ext_out);
+ 
+-unsigned char snd_cs4236_ext_in(struct snd_wss *chip, unsigned char reg)
++/* Read the extended register. */
++unsigned char snd_cs4236_ext_in(struct snd_wss *chip, unsigned char extended_register_address)
+ {
+-	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | 0x17);
++	unsigned char res;
++	unsigned char i23_address = 0x17;
++	unsigned char xa3_xa0 = extended_register_address & 0xf0;
++	unsigned char xa4 = extended_register_address & 0x04;
++	unsigned char xrae = extended_register_address & 0x08;
++	unsigned char xa4_xa0 = xa4 << 2 | xa3_xa0 >> 4;
++	wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | i23_address);
+ 	wss_outb(chip, CS4231P(REG),
+-		 reg | (chip->image[CS4236_EXT_REG] & 0x01));
+-#if 1
++			extended_register_address | (chip->image[CS4236_EXT_REG] & 0x01));
+ 	return wss_inb(chip, CS4231P(REG));
+-#else
+-	{
+-		unsigned char res;
+-		res = wss_inb(chip, CS4231P(REG));
+-		dev_dbg(chip->card->dev, "ext in : reg = 0x%x, val = 0x%x\n",
+-			reg, res);
+-		return res;
+-	}
+-#endif
+ }
+ EXPORT_SYMBOL(snd_cs4236_ext_in);
+ 
+-#if 0
+-
+-static void snd_wss_debug(struct snd_wss *chip)
+-{
+-	dev_dbg(chip->card->dev,
+-		"CS4231 REGS:      INDEX = 0x%02x  "
+-		"                 STATUS = 0x%02x\n",
+-					wss_inb(chip, CS4231P(REGSEL)),
+-					wss_inb(chip, CS4231P(STATUS)));
+-	dev_dbg(chip->card->dev,
+-		"  0x00: left input      = 0x%02x  "
+-		"  0x10: alt 1 (CFIG 2)  = 0x%02x\n",
+-					snd_wss_in(chip, 0x00),
+-					snd_wss_in(chip, 0x10));
+-	dev_dbg(chip->card->dev,
+-		"  0x01: right input     = 0x%02x  "
+-		"  0x11: alt 2 (CFIG 3)  = 0x%02x\n",
+-					snd_wss_in(chip, 0x01),
+-					snd_wss_in(chip, 0x11));
+-	dev_dbg(chip->card->dev,
+-		"  0x02: GF1 left input  = 0x%02x  "
+-		"  0x12: left line in    = 0x%02x\n",
+-					snd_wss_in(chip, 0x02),
+-					snd_wss_in(chip, 0x12));
+-	dev_dbg(chip->card->dev,
+-		"  0x03: GF1 right input = 0x%02x  "
+-		"  0x13: right line in   = 0x%02x\n",
+-					snd_wss_in(chip, 0x03),
+-					snd_wss_in(chip, 0x13));
+-	dev_dbg(chip->card->dev,
+-		"  0x04: CD left input   = 0x%02x  "
+-		"  0x14: timer low       = 0x%02x\n",
+-					snd_wss_in(chip, 0x04),
+-					snd_wss_in(chip, 0x14));
+-	dev_dbg(chip->card->dev,
+-		"  0x05: CD right input  = 0x%02x  "
+-		"  0x15: timer high      = 0x%02x\n",
+-					snd_wss_in(chip, 0x05),
+-					snd_wss_in(chip, 0x15));
+-	dev_dbg(chip->card->dev,
+-		"  0x06: left output     = 0x%02x  "
+-		"  0x16: left MIC (PnP)  = 0x%02x\n",
+-					snd_wss_in(chip, 0x06),
+-					snd_wss_in(chip, 0x16));
+-	dev_dbg(chip->card->dev,
+-		"  0x07: right output    = 0x%02x  "
+-		"  0x17: right MIC (PnP) = 0x%02x\n",
+-					snd_wss_in(chip, 0x07),
+-					snd_wss_in(chip, 0x17));
+-	dev_dbg(chip->card->dev,
+-		"  0x08: playback format = 0x%02x  "
+-		"  0x18: IRQ status      = 0x%02x\n",
+-					snd_wss_in(chip, 0x08),
+-					snd_wss_in(chip, 0x18));
+-	dev_dbg(chip->card->dev,
+-		"  0x09: iface (CFIG 1)  = 0x%02x  "
+-		"  0x19: left line out   = 0x%02x\n",
+-					snd_wss_in(chip, 0x09),
+-					snd_wss_in(chip, 0x19));
+-	dev_dbg(chip->card->dev,
+-		"  0x0a: pin control     = 0x%02x  "
+-		"  0x1a: mono control    = 0x%02x\n",
+-					snd_wss_in(chip, 0x0a),
+-					snd_wss_in(chip, 0x1a));
+-	dev_dbg(chip->card->dev,
+-		"  0x0b: init & status   = 0x%02x  "
+-		"  0x1b: right line out  = 0x%02x\n",
+-					snd_wss_in(chip, 0x0b),
+-					snd_wss_in(chip, 0x1b));
+-	dev_dbg(chip->card->dev,
+-		"  0x0c: revision & mode = 0x%02x  "
+-		"  0x1c: record format   = 0x%02x\n",
+-					snd_wss_in(chip, 0x0c),
+-					snd_wss_in(chip, 0x1c));
+-	dev_dbg(chip->card->dev,
+-		"  0x0d: loopback        = 0x%02x  "
+-		"  0x1d: var freq (PnP)  = 0x%02x\n",
+-					snd_wss_in(chip, 0x0d),
+-					snd_wss_in(chip, 0x1d));
+-	dev_dbg(chip->card->dev,
+-		"  0x0e: ply upr count   = 0x%02x  "
+-		"  0x1e: ply lwr count   = 0x%02x\n",
+-					snd_wss_in(chip, 0x0e),
+-					snd_wss_in(chip, 0x1e));
+-	dev_dbg(chip->card->dev,
+-		"  0x0f: rec upr count   = 0x%02x  "
+-		"  0x1f: rec lwr count   = 0x%02x\n",
+-					snd_wss_in(chip, 0x0f),
+-					snd_wss_in(chip, 0x1f));
+-}
+-
+-#endif
+ 
+ /*
+  *  CS4231 detection / MCE routines
+  */
+ 
++/* This looks like it is doing 2 things:
++ * 1. busy wait
++ * 2. "cleanup sequence" which could mean waiting for the register to have good values again? */
+ static void snd_wss_busy_wait(struct snd_wss *chip)
+ {
+ 	int timeout;
+@@ -358,53 +381,52 @@
+ 		udelay(10);
+ }
+ 
++/* Mode Change Enable Up: required before changing indirect registers:
++ * - Data Format (I8, I28)
++ * - Interface Configuration (I9) */
+ void snd_wss_mce_up(struct snd_wss *chip)
+ {
+-	int timeout;
++	unsigned char index_address_register, cannot_respond, set_mce;
++	bool is_mce_set;
+ 
+ 	snd_wss_wait(chip);
+-#ifdef CONFIG_SND_DEBUG
+-	if (wss_inb(chip, CS4231P(REGSEL)) & CS4231_INIT)
+-		dev_dbg(chip->card->dev,
+-			"mce_up - auto calibration time out (0)\n");
+-#endif
+ 	guard(spinlock_irqsave)(&chip->reg_lock);
+ 	chip->mce_bit |= CS4231_MCE;
++	index_address_register = wss_inb(chip, CS4231P(REGSEL));
+ 	timeout = wss_inb(chip, CS4231P(REGSEL));
+-	if (timeout == 0x80)
+-		dev_dbg(chip->card->dev,
+-			"mce_up [0x%lx]: serious init problem - codec still busy\n",
+-			chip->port);
+-	if (!(timeout & CS4231_MCE))
+-		wss_outb(chip, CS4231P(REGSEL),
+-			 chip->mce_bit | (timeout & 0x1f));
++	set_mce = CS4231_MCE | (index_address_register & WSS_IA01234_MASK); 
++	is_mce_set = (index_address_register & CS4231_MCE) != 0;
++	cannot_respond = index_address_register & CS4231_INIT;
++	if (!is_mce_set && !cannot_respond)
++		/* chip->mce was originally an int, which is strange bceause its name has "bit" so it should
++		 * be a single bit. Since we use it to prepare the value to set on the indirect_address_register
++		 * I'm not sure what happens to TRD. I need to figure out the value of TRD. If all writes to chip->mce_bit
++		 * are also considering the TRD bit, then TRD would be fine, but if not, then TRD would randomly change
++		 * value... Since TRD controls DMA transfers, it looks like it could impact playback and capture.
++		 * It works for now on my 560z so I haven't investigated further. */
++		wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | set_mce);
+ }
+ EXPORT_SYMBOL(snd_wss_mce_up);
+ 
++/* Mode Change Enable Down: locks the indirect registers.  */
+ void snd_wss_mce_down(struct snd_wss *chip)
+ {
+ 	unsigned long end_time;
+-	int timeout;
+-	int hw_mask = WSS_HW_CS4231_MASK | WSS_HW_CS4232_MASK | WSS_HW_AD1848;
++	unsigned char index_address_register, i0, i11;
++	bool is_mce_set, is_aci_cleared=true, is_init_cleared=true;
+ 
+ 	snd_wss_busy_wait(chip);
+ 
+-#ifdef CONFIG_SND_DEBUG
+-	if (wss_inb(chip, CS4231P(REGSEL)) & CS4231_INIT)
+-		dev_dbg(chip->card->dev,
+-			"mce_down [0x%lx] - auto calibration time out (0)\n",
+-			(long)CS4231P(REGSEL));
+-#endif
+ 	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
+ 		chip->mce_bit &= ~CS4231_MCE;
+-		timeout = wss_inb(chip, CS4231P(REGSEL));
+-		wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | (timeout & 0x1f));
+-	}
+-	if (timeout == 0x80)
+-		dev_dbg(chip->card->dev,
+-			"mce_down [0x%lx]: serious init problem - codec still busy\n",
+-			chip->port);
+-	if ((timeout & CS4231_MCE) == 0 || !(chip->hardware & hw_mask))
++		index_address_register = wss_inb(chip, CS4231P(REGSEL));
++		/* Same as for snd_wss_mce_up; what's happening with the TRD bit here? */
++		wss_outb(chip, CS4231P(REGSEL), chip->mce_bit | (index_address_register & WSS_IA01234_MASK));
++	}
++	is_mce_set = (index_address_register & CS4231_MCE) != 0;
++	/* There was an hardware check here before. I removed it because snd_wss_mce_up doesn't have that check.
++	 * So if we can set the mce up, I think we should be able to set it down. */
++	if (!is_mce_set)
+ 		return;
+ 
+ 	/*
+@@ -414,49 +436,75 @@
+ 	 */
+ 	msleep(1);
+ 
+-	dev_dbg(chip->card->dev, "(1) jiffies = %lu\n", jiffies);
+-
+ 	/* check condition up to 250 ms */
+ 	end_time = jiffies + msecs_to_jiffies(250);
+-	while (snd_wss_in(chip, CS4231_TEST_INIT) &
+-		CS4231_CALIB_IN_PROGRESS) {
+-
++	/* CS4231_TEST_INIT is 0b0000 1011 which is 11 in decimal. This should be selecting I11 where ACI is. 
++	 * CS4231_CALIB_IN_PROGRESS is 0b0010 0000 and that's the ACI (Auto-Calibrate In Progess) bit.
++	 * 0 - Calibration not in progress
++	 * 1 - Calibration is in progress */
++	i11 = snd_wss_in(chip, CS4231_TEST_INIT);
++	while (i11 & CS4231_CALIB_IN_PROGRESS) {
+ 		if (time_after(jiffies, end_time)) {
+-			dev_err(chip->card->dev,
+-				"mce_down - auto calibration time out (2)\n");
+-			return;
++			is_aci_cleared=false;
++			break;
+ 		}
+ 		msleep(1);
++		i11 = snd_wss_in(chip, CS4231_TEST_INIT);
+ 	}
+ 
+-	dev_dbg(chip->card->dev, "(2) jiffies = %lu\n", jiffies);
+-
+ 	/* check condition up to 100 ms */
+ 	end_time = jiffies + msecs_to_jiffies(100);
++	/* Read from WSS I0 */
++	i0 = wss_inb(chip, CS4231P(REGSEL));
++	/* CS4231_INIT which is 0b1000 0000 
++	 * INIT - This bit is read as 1 when the Codec is in a state in which it cannot respond to
++	 * parallel interface cycles.*/
++	while (i0 & CS4231_INIT) {
+ 	while (wss_inb(chip, CS4231P(REGSEL)) & CS4231_INIT) {
+ 		if (time_after(jiffies, end_time)) {
+-			dev_err(chip->card->dev,
+-				"mce_down - auto calibration time out (3)\n");
+-			return;
++			is_init_cleared=false;
++			break;
+ 		}
+ 		msleep(1);
++		i0 = wss_inb(chip, CS4231P(REGSEL));
+ 	}
+ 
+-	dev_dbg(chip->card->dev, "(3) jiffies = %lu\n", jiffies);
+-	dev_dbg(chip->card->dev, "mce_down - exit = 0x%x\n",
+-		wss_inb(chip, CS4231P(REGSEL)));
++	if (!is_init_cleared || !is_aci_cleared) {
++		dev_err(chip->card->dev,
++				"is_init_cleared=%d,is_aci_cleared=%d,I0=0x%x,I11=0x%x\n",
++				is_init_cleared, is_aci_cleared, i0, i11);
++	}
+ }
+ EXPORT_SYMBOL(snd_wss_mce_down);
+ 
++/* Get the count of reads for the DMA so that the DACs will have the right data for playback. */
+ static unsigned int snd_wss_get_count(unsigned char format, unsigned int size)
+ {
+-	switch (format & 0xe0) {
+-	case CS4231_LINEAR_16:
+-	case CS4231_LINEAR_16_BIG:
+-		size >>= 1;
+-		break;
+-	case CS4231_ADPCM_16:
+-		return size >> 2;
++	unsigned char format_mask = 0b11100000;
++/*
++ * From the CS4237B datasheet, in I8 (Fs and Playback Data Format Index Register)
++ * 
++ * +------+------+------+-----------------------------------------------------+
++ * | FMT1 | FMT0 | C/L  | Audio Data Format                                   |
++ * | (D7) | (D6) | (D5) |                                                     |
++ * +------+------+------+-----------------------------------------------------+
++ * |  0   |  0   |  0   | Linear, 8-bit unsigned                              |
++ * |  0   |  0   |  1   | μ-Law, 8-bit companded                              |
++ * |  0   |  1   |  0   | Linear, 16-bit two's complement, Little Endian      |
++ * |  0   |  1   |  1   | A-Law, 8-bit companded                              |
++ * |  1   |  0   |  0   | RESERVED                                            |
++ * |  1   |  0   |  1   | ADPCM, 4-bit, IMA compatible                        |
++ * |  1   |  1   |  0   | Linear, 16-bit two's complement, Big Endian         |
++ * |  1   |  1   |  1   | RESERVED                                            |
++ * +------+------+------+-----------------------------------------------------+
++ */
++	switch (format & format_mask) {
++		case CS4231_LINEAR_16:
++		case CS4231_LINEAR_16_BIG:
++			size >>= 1;
++			break;
++		case CS4231_ADPCM_16:
++			return size >> 2;
+ 	}
+ 	if (format & CS4231_STEREO)
+ 		size >>= 1;
+@@ -504,9 +552,6 @@
+ 			chip->trigger(chip, what, 0);
+ 	}
+ 	snd_wss_out(chip, CS4231_IFACE_CTRL, chip->image[CS4231_IFACE_CTRL]);
+-#if 0
+-	snd_wss_debug(chip);
+-#endif
+ 	return result;
+ }
+ 
+@@ -541,9 +586,6 @@
+ 	}
+ 	if (channels > 1)
+ 		rformat |= CS4231_STEREO;
+-#if 0
+-	dev_dbg(chip->card->dev, "get_format: 0x%x (mode=0x%x)\n", format, mode);
+-#endif
+ 	return rformat;
+ }
+ 
+@@ -582,146 +624,81 @@
+ 		     mute | chip->image[CS4231_LEFT_OUTPUT]);
+ 	snd_wss_dout(chip, CS4231_RIGHT_OUTPUT,
+ 		     mute | chip->image[CS4231_RIGHT_OUTPUT]);
+-	if (!(chip->hardware & WSS_HW_AD1848_MASK)) {
+-		snd_wss_dout(chip, CS4231_LEFT_LINE_IN,
+-			     mute | chip->image[CS4231_LEFT_LINE_IN]);
+-		snd_wss_dout(chip, CS4231_RIGHT_LINE_IN,
+-			     mute | chip->image[CS4231_RIGHT_LINE_IN]);
+-		snd_wss_dout(chip, CS4231_MONO_CTRL,
+-			     mute ? 0xc0 : chip->image[CS4231_MONO_CTRL]);
+-	}
+-	if (chip->hardware == WSS_HW_INTERWAVE) {
+-		snd_wss_dout(chip, CS4231_LEFT_MIC_INPUT,
+-			     mute | chip->image[CS4231_LEFT_MIC_INPUT]);
+-		snd_wss_dout(chip, CS4231_RIGHT_MIC_INPUT,
+-			     mute | chip->image[CS4231_RIGHT_MIC_INPUT]);
+-		snd_wss_dout(chip, CS4231_LINE_LEFT_OUTPUT,
+-			     mute | chip->image[CS4231_LINE_LEFT_OUTPUT]);
+-		snd_wss_dout(chip, CS4231_LINE_RIGHT_OUTPUT,
+-			     mute | chip->image[CS4231_LINE_RIGHT_OUTPUT]);
+-	}
++	/* simplfied code since hardware is WSS_HW_CS4237B */
+ 	chip->calibrate_mute = mute;
+ }
+ 
++/* Check the 3 format bits, store them in chip->image[CS4231_PLAYBK_FORMAT] and write them out on the WSS registers. */
+ static void snd_wss_playback_format(struct snd_wss *chip,
+ 				       struct snd_pcm_hw_params *params,
+ 				       unsigned char pdfr)
+ {
+-	int full_calib = 1;
++	/* Fs and Playback Data Format (I8)
++	 * D7   D6   D5  D4  D3   D2   D1   D0
++	 * FMT1 FMT0 C/L S/M CFS2 CFS1 CFS0 C2SL */
++	/* Alternate Feature Enable I (I16)
++	 * D4
++	 * PMCE
++	 * Playback Mode Change Enable.
++	 * When set, it allows modification of
++	 * the stereo/mono and audio data for-
++	 * mat bits (D7-D4) for the playback
++	 * channel, I8. MCE in R0 must be
++	 * used to change the sample fre-
++	 * quency. */
++	/* snd_wss_create calls snd_wss_probe which sets the chip_hardware to WSS_HW_CS4237B 
++	 * I believe it's unlikely that the hardware changes afterwards and also very likely 
++	 * that snd_wss_playback_format is only called after the snd_wss_probe. 
++	 * I removed code which was checking for other versions than the CS4237B. */
+ 
+ 	guard(mutex)(&chip->mce_mutex);
+-	if (chip->hardware == WSS_HW_CS4231A ||
+-	    (chip->hardware & WSS_HW_CS4232_MASK)) {
+-		guard(spinlock_irqsave)(&chip->reg_lock);
+-		if ((chip->image[CS4231_PLAYBK_FORMAT] & 0x0f) == (pdfr & 0x0f)) {	/* rate is same? */
+-			snd_wss_out(chip, CS4231_ALT_FEATURE_1,
+-				    chip->image[CS4231_ALT_FEATURE_1] | 0x10);
+-			chip->image[CS4231_PLAYBK_FORMAT] = pdfr;
+-			snd_wss_out(chip, CS4231_PLAYBK_FORMAT,
+-				    chip->image[CS4231_PLAYBK_FORMAT]);
+-			snd_wss_out(chip, CS4231_ALT_FEATURE_1,
+-				    chip->image[CS4231_ALT_FEATURE_1] &= ~0x10);
+-			udelay(100); /* Fixes audible clicks at least on GUS MAX */
+-			full_calib = 0;
+-		}
+-	} else if (chip->hardware == WSS_HW_AD1845) {
+-		unsigned rate = params_rate(params);
+-
+-		/*
+-		 * Program the AD1845 correctly for the playback stream.
+-		 * Note that we do NOT need to toggle the MCE bit because
+-		 * the PLAYBACK_ENABLE bit of the Interface Configuration
+-		 * register is set.
+-		 *
+-		 * NOTE: We seem to need to write to the MSB before the LSB
+-		 *       to get the correct sample frequency.
+-		 */
+-		guard(spinlock_irqsave)(&chip->reg_lock);
+-		snd_wss_out(chip, CS4231_PLAYBK_FORMAT, (pdfr & 0xf0));
+-		snd_wss_out(chip, AD1845_UPR_FREQ_SEL, (rate >> 8) & 0xff);
+-		snd_wss_out(chip, AD1845_LWR_FREQ_SEL, rate & 0xff);
+-		full_calib = 0;
+-	}
+-	if (full_calib) {
+-		snd_wss_mce_up(chip);
+-		scoped_guard(spinlock_irqsave, &chip->reg_lock) {
+-			if (chip->hardware != WSS_HW_INTERWAVE && !chip->single_dma) {
+-				if (chip->image[CS4231_IFACE_CTRL] & CS4231_RECORD_ENABLE)
+-					pdfr = (pdfr & 0xf0) |
+-						(chip->image[CS4231_REC_FORMAT] & 0x0f);
+-			} else {
+-				chip->image[CS4231_PLAYBK_FORMAT] = pdfr;
+-			}
+-			snd_wss_out(chip, CS4231_PLAYBK_FORMAT, pdfr);
+-		}
+-		if (chip->hardware == WSS_HW_OPL3SA2)
+-			udelay(100);	/* this seems to help */
+-		snd_wss_mce_down(chip);
++	snd_wss_mce_up(chip);
++	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
++		chip->image[CS4231_PLAYBK_FORMAT] = pdfr;
++		snd_wss_out(chip, CS4231_PLAYBK_FORMAT, pdfr);
+ 	}
++	snd_wss_mce_down(chip);
+ }
+ 
++/* set the capture format on 
++ * CS4231_PLAYBK_FORMAT which is 0x08 which is I8
++ * Fs and Playback Data Format (I8)
++ * Default = 00000000
++ * D7 D6 D5 D4 D3 D2 D1 D0
++ * FMT1 FMT0 C/L S/M CFS2 CFS1 CFS0 C2SL
++ * CS4131_REC_FORMAT which ix 0x1c which is I28.
++ * Capture Data Format (I28)
++ * Default = 0000xxxx
++ * D7 D6 D5 D4 D3 D2 D1 D0
++ * FMT1 FMT0 C/L S/M res res res res */
+ static void snd_wss_capture_format(struct snd_wss *chip,
+ 				   struct snd_pcm_hw_params *params,
+ 				   unsigned char cdfr)
+ {
+ 	unsigned long flags;
+-	int full_calib = 1;
+ 
+ 	guard(mutex)(&chip->mce_mutex);
+-	if (chip->hardware == WSS_HW_CS4231A ||
+-	    (chip->hardware & WSS_HW_CS4232_MASK)) {
+-		guard(spinlock_irqsave)(&chip->reg_lock);
+-		if ((chip->image[CS4231_PLAYBK_FORMAT] & 0x0f) == (cdfr & 0x0f) ||	/* rate is same? */
+-		    (chip->image[CS4231_IFACE_CTRL] & CS4231_PLAYBACK_ENABLE)) {
+-			snd_wss_out(chip, CS4231_ALT_FEATURE_1,
+-				chip->image[CS4231_ALT_FEATURE_1] | 0x20);
+-			snd_wss_out(chip, CS4231_REC_FORMAT,
+-				chip->image[CS4231_REC_FORMAT] = cdfr);
+-			snd_wss_out(chip, CS4231_ALT_FEATURE_1,
+-				chip->image[CS4231_ALT_FEATURE_1] &= ~0x20);
+-			full_calib = 0;
+-		}
+-	} else if (chip->hardware == WSS_HW_AD1845) {
+-		unsigned rate = params_rate(params);
+-
+-		/*
+-		 * Program the AD1845 correctly for the capture stream.
+-		 * Note that we do NOT need to toggle the MCE bit because
+-		 * the PLAYBACK_ENABLE bit of the Interface Configuration
+-		 * register is set.
+-		 *
+-		 * NOTE: We seem to need to write to the MSB before the LSB
+-		 *       to get the correct sample frequency.
+-		 */
+-		guard(spinlock_irqsave)(&chip->reg_lock);
+-		snd_wss_out(chip, CS4231_REC_FORMAT, (cdfr & 0xf0));
+-		snd_wss_out(chip, AD1845_UPR_FREQ_SEL, (rate >> 8) & 0xff);
+-		snd_wss_out(chip, AD1845_LWR_FREQ_SEL, rate & 0xff);
+-		full_calib = 0;
+-	}
+-	if (full_calib) {
+-		snd_wss_mce_up(chip);
+-		spin_lock_irqsave(&chip->reg_lock, flags);
+-		if (chip->hardware != WSS_HW_INTERWAVE &&
+-		    !(chip->image[CS4231_IFACE_CTRL] & CS4231_PLAYBACK_ENABLE)) {
+-			if (chip->single_dma)
+-				snd_wss_out(chip, CS4231_PLAYBK_FORMAT, cdfr);
+-			else
+-				snd_wss_out(chip, CS4231_PLAYBK_FORMAT,
+-				   (chip->image[CS4231_PLAYBK_FORMAT] & 0xf0) |
+-				   (cdfr & 0x0f));
+-			spin_unlock_irqrestore(&chip->reg_lock, flags);
+-			snd_wss_mce_down(chip);
+-			snd_wss_mce_up(chip);
+-			spin_lock_irqsave(&chip->reg_lock, flags);
+-		}
+-		if (chip->hardware & WSS_HW_AD1848_MASK)
+-			snd_wss_out(chip, CS4231_PLAYBK_FORMAT, cdfr);
+-		else
+-			snd_wss_out(chip, CS4231_REC_FORMAT, cdfr);
++	snd_wss_mce_up(chip);
++	spin_lock_irqsave(&chip->reg_lock, flags);
++	/* TODO tres etrange. Je pense que ce if ne devrait pas s'appliquer. Peut-etre le garder et mettre en dbg_err 
++	 * pour le suivre a l'execution. Vu que le son fonctionne, je n'ai pas poursuivi mes recherches. */
++	if (!(chip->image[CS4231_IFACE_CTRL] & CS4231_PLAYBACK_ENABLE)) {
++		snd_wss_out(chip, CS4231_PLAYBK_FORMAT,
++			(chip->image[CS4231_PLAYBK_FORMAT] & 0xf0) |
++			(cdfr & 0x0f));
+ 		spin_unlock_irqrestore(&chip->reg_lock, flags);
+ 		snd_wss_mce_down(chip);
++		snd_wss_mce_up(chip);
++		spin_lock_irqsave(&chip->reg_lock, flags);
+ 	}
++	/* TODO etrange qu'on ne sauvegarde pas le cdfr and chip->image[CS4231_REC_FORMAT].
++	 * aussi, est-ce qu'on doit faire quelque chose avec chip->image[CS4231_ALT_FEATURE_1] &= 0x20 ...
++	 * Le son fonctionne sur mon 560z, je n,ai pas poursuivi mes recherches. */
++	/* chip->hardware is WSS_HW_CS4237B which is 0x0402 
++	 * WSS_HW_AD1848_MASK is 0x0800 so I can remove the if and keep the else. */
++	snd_wss_out(chip, CS4231_REC_FORMAT, cdfr);
++	spin_unlock_irqrestore(&chip->reg_lock, flags);
++	snd_wss_mce_down(chip);
+ }
+ 
+ /*
+@@ -776,9 +753,6 @@
+ 	snd_wss_calibrate_mute(chip, 1);
+ 	snd_wss_mce_down(chip);
+ 
+-#ifdef SNDRV_DEBUG_MCE
+-	dev_dbg(chip->card->dev, "init: (1)\n");
+-#endif
+ 	snd_wss_mce_up(chip);
+ 	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
+ 		chip->image[CS4231_IFACE_CTRL] &= ~(CS4231_PLAYBACK_ENABLE |
+@@ -791,10 +765,6 @@
+ 	}
+ 	snd_wss_mce_down(chip);
+ 
+-#ifdef SNDRV_DEBUG_MCE
+-	dev_dbg(chip->card->dev, "init: (2)\n");
+-#endif
+-
+ 	snd_wss_mce_up(chip);
+ 	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
+ 		chip->image[CS4231_IFACE_CTRL] &= ~CS4231_AUTOCALIB;
+@@ -804,11 +774,6 @@
+ 	}
+ 	snd_wss_mce_down(chip);
+ 
+-#ifdef SNDRV_DEBUG_MCE
+-	dev_dbg(chip->card->dev, "init: (3) - afei = 0x%x\n",
+-		chip->image[CS4231_ALT_FEATURE_1]);
+-#endif
+-
+ 	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
+ 		snd_wss_out(chip, CS4231_ALT_FEATURE_2,
+ 			    chip->image[CS4231_ALT_FEATURE_2]);
+@@ -821,10 +786,6 @@
+ 	}
+ 	snd_wss_mce_down(chip);
+ 
+-#ifdef SNDRV_DEBUG_MCE
+-	dev_dbg(chip->card->dev, "init: (4)\n");
+-#endif
+-
+ 	snd_wss_mce_up(chip);
+ 	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
+ 		if (!(chip->hardware & WSS_HW_AD1848_MASK))
+@@ -833,17 +794,12 @@
+ 	}
+ 	snd_wss_mce_down(chip);
+ 	snd_wss_calibrate_mute(chip, 0);
+-
+-#ifdef SNDRV_DEBUG_MCE
+-	dev_dbg(chip->card->dev, "init: (5)\n");
+-#endif
+ }
+ 
+ static int snd_wss_open(struct snd_wss *chip, unsigned int mode)
+ {
+ 	guard(mutex)(&chip->open_mutex);
+-	if ((chip->mode & mode) ||
+-	    ((chip->mode & WSS_MODE_OPEN) && chip->single_dma))
++	if (chip->mode & mode)
+ 		return -EAGAIN;
+ 	if (chip->mode & WSS_MODE_OPEN) {
+ 		chip->mode |= mode;
+@@ -964,6 +920,23 @@
+ 	return 0;
+ }
+ 
++/* Set the playback DMA registers for sending data to the DACs.
++ * PLAYBACK DMA REGISTERS
++ * The playback DMA registers (I14/15) are used
++ * for sending playback data to the DACs in
++ * MODE 2 and 3. In MODE 1, these registers
++ * (I14/15) are used for both playback and capture;
++ * therefore, full-duplex DMA operation is not pos-
++ * sible.
++ * When the playback Current Count register rolls
++ * under, the Playback Interrupt bit, PI, (I24) is set
++ * causing the INT bit (R2) to be set. The interrupt
++ * is cleared by a write of any value to the Status
++ * register (R2), or writing a "0" to the Playback
++ * Interrupt bit, PI (I24).
++ * We should be in MODE 2 since MODE 2, forces the part to
++ * appear as a CS4231 super set and is compatible
++ * with the CS4232. */
+ static int snd_wss_playback_prepare(struct snd_pcm_substream *substream)
+ {
+ 	struct snd_wss *chip = snd_pcm_substream_chip(substream);
+@@ -975,12 +948,49 @@
+ 	chip->p_dma_size = size;
+ 	chip->image[CS4231_IFACE_CTRL] &= ~(CS4231_PLAYBACK_ENABLE | CS4231_PLAYBACK_PIO);
+ 	snd_dma_program(chip->dma1, runtime->dma_addr, size, DMA_MODE_WRITE | DMA_AUTOINIT);
++	/* By claude.ai:
++	 * The -1 in the count = snd_wss_get_count(chip->image[CS4231_PLAYBK_FORMAT], count) - 1; line is due to how DMA controllers typically work with count registers.
++	 * In many DMA controllers, including those used with the CS4231/CS4237B chips, the count value is loaded as "number of transfers minus 1" because:
++	 *
++	 * The DMA controller will execute (count+1) transfers before generating an interrupt
++	 * A value of 0 in the count register typically means "execute 1 transfer" not "execute 0 transfers"
++	 * This allows for the maximum possible range of the counter (e.g., a 16-bit counter can represent 1 to 65,536 transfers, not 0 to 65,535)
++	 *
++	 * So in the context of this code:
++	 *
++	 * snd_wss_get_count() calculates how many samples are in the period
++	 * The -1 adjusts this to the "N-1" format expected by the DMA hardware
++	 * The value is then split into lower and upper bytes and written to the DMA count registers
++	 *
++	 * This is a common pattern in hardware programming where registers follow the "N-1" encoding scheme for counters.
++	 * */
+ 	count = snd_wss_get_count(chip->image[CS4231_PLAYBK_FORMAT], count) - 1;
++	/* CS4231_PLY_LWR_CNT is 0b0000 1111 
++	 * Playback Lower Base (I15)
++	 * Lower Base Bits: This register is the
++	 * lower byte which represents the 8
++	 * least significant bits of the 16-bit
++	 * Playback Base register. Reads from
++	 * this register return the same value
++	 * which was written. When set for
++	 * MODE 1 or SDC, this register is
++	 * used for both the Playback and Cap-
++	 * ture Base registers.*/
+ 	snd_wss_out(chip, CS4231_PLY_LWR_CNT, (unsigned char) count);
++	/* CS4231_PLY_UPR_CNT is 0b0000 1110 
++	 * Playback Upper Base (I14)
++	 * Playback Upper Base: This register is
++	 * the upper byte which represents the
++	 * 8 most significant bits of the 16-bit
++	 * Playback Base register. Reads from
++	 * this register return the same value
++	 * which was written. The Current
++	 * Count registers cannot be read.
++	 * When set for MODE 1 or SDC, this
++	 * register is used for both the Play-
++	 * back and Capture Base registers.
++	 * */
+ 	snd_wss_out(chip, CS4231_PLY_UPR_CNT, (unsigned char) (count >> 8));
+-#if 0
+-	snd_wss_debug(chip);
+-#endif
+ 	return 0;
+ }
+ 
+@@ -1008,22 +1018,16 @@
+ 	chip->c_dma_size = size;
+ 	chip->image[CS4231_IFACE_CTRL] &= ~(CS4231_RECORD_ENABLE | CS4231_RECORD_PIO);
+ 	snd_dma_program(chip->dma2, runtime->dma_addr, size, DMA_MODE_READ | DMA_AUTOINIT);
+-	if (chip->hardware & WSS_HW_AD1848_MASK)
+-		count = snd_wss_get_count(chip->image[CS4231_PLAYBK_FORMAT],
+-					  count);
+-	else
+-		count = snd_wss_get_count(chip->image[CS4231_REC_FORMAT],
+-					  count);
++	/* 560z is a CS4237B. simplifying */
++	/* the -1 is because sending a count of 0 will result in a DMA transfer so if
++	 * the count is 1 for 1 read, we need to send 0 */
++	count = snd_wss_get_count(chip->image[CS4231_REC_FORMAT],
++			count);
+ 	count--;
+-	if (chip->single_dma && chip->hardware != WSS_HW_INTERWAVE) {
+-		snd_wss_out(chip, CS4231_PLY_LWR_CNT, (unsigned char) count);
+-		snd_wss_out(chip, CS4231_PLY_UPR_CNT,
+-			    (unsigned char) (count >> 8));
+-	} else {
+-		snd_wss_out(chip, CS4231_REC_LWR_CNT, (unsigned char) count);
+-		snd_wss_out(chip, CS4231_REC_UPR_CNT,
+-			    (unsigned char) (count >> 8));
+-	}
++	/* 560z is a 2 dma. simplifying*/
++	snd_wss_out(chip, CS4231_REC_LWR_CNT, (unsigned char) count);
++	snd_wss_out(chip, CS4231_REC_UPR_CNT,
++		(unsigned char) (count >> 8));
+ 	return 0;
+ }
+ 
+@@ -1039,52 +1043,35 @@
+ }
+ EXPORT_SYMBOL(snd_wss_overrange);
+ 
++/* I think this handles interrupts duing playback and capture.
++ * TODO figure out what snd_pcm_period_elapsed does. Since the sound
++ * works, I didn't investigate further. */
+ irqreturn_t snd_wss_interrupt(int irq, void *dev_id)
+ {
+ 	struct snd_wss *chip = dev_id;
+ 	unsigned char status;
+ 
+-	if (chip->hardware & WSS_HW_AD1848_MASK)
+-		/* pretend it was the only possible irq for AD1848 */
+-		status = CS4231_PLAYBACK_IRQ;
+-	else
+-		status = snd_wss_in(chip, CS4231_IRQ_STATUS);
++	/* 560z is a CS4237B. simplifying */
++	status = snd_wss_in(chip, CS4231_IRQ_STATUS);
+ 	if (status & CS4231_TIMER_IRQ) {
+ 		if (chip->timer)
+ 			snd_timer_interrupt(chip->timer, chip->timer->sticks);
+ 	}
+-	if (chip->single_dma && chip->hardware != WSS_HW_INTERWAVE) {
+-		if (status & CS4231_PLAYBACK_IRQ) {
+-			if (chip->mode & WSS_MODE_PLAY) {
+-				if (chip->playback_substream)
+-					snd_pcm_period_elapsed(chip->playback_substream);
+-			}
+-			if (chip->mode & WSS_MODE_RECORD) {
+-				if (chip->capture_substream) {
+-					snd_wss_overrange(chip);
+-					snd_pcm_period_elapsed(chip->capture_substream);
+-				}
+-			}
+-		}
+-	} else {
+-		if (status & CS4231_PLAYBACK_IRQ) {
+-			if (chip->playback_substream)
+-				snd_pcm_period_elapsed(chip->playback_substream);
+-		}
+-		if (status & CS4231_RECORD_IRQ) {
+-			if (chip->capture_substream) {
+-				snd_wss_overrange(chip);
+-				snd_pcm_period_elapsed(chip->capture_substream);
+-			}
++	/* 560z is a 2 dma. simplifying*/
++	if (status & CS4231_PLAYBACK_IRQ) {
++		if (chip->playback_substream)
++			snd_pcm_period_elapsed(chip->playback_substream);
++	}
++	if (status & CS4231_RECORD_IRQ) {
++		if (chip->capture_substream) {
++			snd_wss_overrange(chip);
++			snd_pcm_period_elapsed(chip->capture_substream);
+ 		}
+ 	}
+ 
+ 	guard(spinlock)(&chip->reg_lock);
+ 	status = ~CS4231_ALL_IRQS | ~status;
+-	if (chip->hardware & WSS_HW_AD1848_MASK)
+-		wss_outb(chip, CS4231P(STATUS), 0);
+-	else
+-		snd_wss_out(chip, CS4231_IRQ_STATUS, status);
++	snd_wss_out(chip, CS4231_IRQ_STATUS, status);
+ 	return IRQ_HANDLED;
+ }
+ EXPORT_SYMBOL(snd_wss_interrupt);
+@@ -1111,266 +1098,147 @@
+ 	return bytes_to_frames(substream->runtime, ptr);
+ }
+ 
+-/*
+-
+- */
+-
+-static int snd_ad1848_probe(struct snd_wss *chip)
+-{
+-	unsigned long timeout = jiffies + msecs_to_jiffies(1000);
+-	unsigned char r;
+-	unsigned short hardware = 0;
+-	int i;
+-
+-	while (wss_inb(chip, CS4231P(REGSEL)) & CS4231_INIT) {
+-		if (time_after(jiffies, timeout))
+-			return -ENODEV;
+-		cond_resched();
+-	}
+-	guard(spinlock_irqsave)(&chip->reg_lock);
+-
+-	/* set CS423x MODE 1 */
+-	snd_wss_dout(chip, CS4231_MISC_INFO, 0);
+-
+-	snd_wss_dout(chip, CS4231_RIGHT_INPUT, 0x45); /* 0x55 & ~0x10 */
+-	r = snd_wss_in(chip, CS4231_RIGHT_INPUT);
+-	if (r != 0x45) {
+-		/* RMGE always high on AD1847 */
+-		if ((r & ~CS4231_ENABLE_MIC_GAIN) != 0x45)
+-			return -ENODEV;
+-		hardware = WSS_HW_AD1847;
+-	} else {
+-		snd_wss_dout(chip, CS4231_LEFT_INPUT,  0xaa);
+-		r = snd_wss_in(chip, CS4231_LEFT_INPUT);
+-		/* L/RMGE always low on AT2320 */
+-		if ((r | CS4231_ENABLE_MIC_GAIN) != 0xaa)
+-			return -ENODEV;
+-	}
+-
+-	/* clear pending IRQ */
+-	wss_inb(chip, CS4231P(STATUS));
+-	wss_outb(chip, CS4231P(STATUS), 0);
+-	mb();
+-
+-	if ((chip->hardware & WSS_HW_TYPE_MASK) != WSS_HW_DETECT)
+-		return 0;
+-
+-	if (hardware) {
+-		chip->hardware = hardware;
+-		return 0;
+-	}
+-
+-	r = snd_wss_in(chip, CS4231_MISC_INFO);
+-
+-	/* set CS423x MODE 2 */
+-	snd_wss_dout(chip, CS4231_MISC_INFO, CS4231_MODE2);
+-	for (i = 0; i < 16; i++) {
+-		if (snd_wss_in(chip, i) != snd_wss_in(chip, 16 + i)) {
+-			/* we have more than 16 registers: check ID */
+-			if ((r & 0xf) != 0xa)
+-				goto out_mode;
+-			/*
+-			 * on CMI8330, CS4231_VERSION is volume control and
+-			 * can be set to 0
+-			 */
+-			snd_wss_dout(chip, CS4231_VERSION, 0);
+-			r = snd_wss_in(chip, CS4231_VERSION) & 0xe7;
+-			if (!r)
+-				chip->hardware = WSS_HW_CMI8330;
+-			goto out_mode;
+-		}
+-	}
+-	if (r & 0x80)
+-		chip->hardware = WSS_HW_CS4248;
+-	else
+-		chip->hardware = WSS_HW_AD1848;
+-out_mode:
+-	snd_wss_dout(chip, CS4231_MISC_INFO, 0);
+-	return 0;
+-}
+-
++/* probe the card and fill information such as hardware.
++ * For my 560z, chip->hardware is WSS_HW_CS4237B */
+ static int snd_wss_probe(struct snd_wss *chip)
+ {
+ 	int i, id, rev, regnum;
+ 	unsigned char *ptr;
+ 	unsigned int hw;
+ 
+-	id = snd_ad1848_probe(chip);
+-	if (id < 0)
+-		return id;
+-
+ 	hw = chip->hardware;
+-	if ((hw & WSS_HW_TYPE_MASK) == WSS_HW_DETECT) {
+-		for (i = 0; i < 50; i++) {
+-			mb();
+-			if (wss_inb(chip, CS4231P(REGSEL)) & CS4231_INIT)
+-				msleep(2);
+-			else {
+-				guard(spinlock_irqsave)(&chip->reg_lock);
+-				snd_wss_out(chip, CS4231_MISC_INFO,
+-					    CS4231_MODE2);
+-				id = snd_wss_in(chip, CS4231_MISC_INFO) & 0x0f;
+-				if (id == 0x0a)
+-					break;	/* this is valid value */
+-			}
+-		}
+-		dev_dbg(chip->card->dev, "wss: port = 0x%lx, id = 0x%x\n",
+-			chip->port, id);
+-		if (id != 0x0a)
+-			return -ENODEV;	/* no valid device found */
+-
+-		rev = snd_wss_in(chip, CS4231_VERSION) & 0xe7;
+-		dev_dbg(chip->card->dev, "CS4231: VERSION (I25) = 0x%x\n", rev);
+-		if (rev == 0x80) {
+-			unsigned char tmp = snd_wss_in(chip, 23);
+-			snd_wss_out(chip, 23, ~tmp);
+-			if (snd_wss_in(chip, 23) != tmp)
+-				chip->hardware = WSS_HW_AD1845;
+-			else
+-				chip->hardware = WSS_HW_CS4231;
+-		} else if (rev == 0xa0) {
+-			chip->hardware = WSS_HW_CS4231A;
+-		} else if (rev == 0xa2) {
+-			chip->hardware = WSS_HW_CS4232;
+-		} else if (rev == 0xb2) {
+-			chip->hardware = WSS_HW_CS4232A;
+-		} else if (rev == 0x83) {
+-			chip->hardware = WSS_HW_CS4236;
+-		} else if (rev == 0x03) {
+-			chip->hardware = WSS_HW_CS4236B;
+-		} else {
+-			dev_err(chip->card->dev,
+-				"unknown CS chip with version 0x%x\n", rev);
+-			return -ENODEV;		/* unknown CS4231 chip? */
+-		}
++	/* Below is a bit difficult to understand because I heavily modified the code
++	 * and hard-coded values which I know from testing do work with the 560z. */
++	/* I kept only down here from the "if ((hw & WSS_HW_TYPE_MASK) == WSS_HW_DETECT)" code block */
++	/* scoped_guard was added when I rewrote for 6.18.8
++	 * it was only a guard within a scope, but since I'm hard-coding values, I needed
++	 * a scoped guard. */
++	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
++		/* CS4231_MISC_INFO is 0x0c so I12
++		 * MODE and ID (I12)
++		 * Default = 100x1010
++		 * D7 D6 D5 D4 D3 D2 D1 D0
++		 * 1 CMS1 CMS0 res ID3 ID2 ID1 ID0
++		 * CMS1,0 Codec Mode Select bits: Enables the
++		 * Extended registers and functions of
++		 * the part.
++		 * 00 - MODE 1
++		 * 01 - Reserved
++		 * 10 - MODE 2
++		 * 11 - MODE 3 */
++		/* CS4231_4236_MODE3 is 0xe0 so 0b1110 0000 */
++		/* Previous patch had this mb after the -ENODEV
++		 * but the only mb in the code block I replaced was before
++		 * the snd_wss_out. It makes more sense here, */
++	  mb();
++		snd_wss_out(chip, CS4231_MISC_INFO, CS4231_4236_MODE3);
++		id = snd_wss_in(chip, CS4231_MISC_INFO) & 0x0f;
++	}
++	/* This is port = 0x530, id = 0xa for my IBM 560z */
++	dev_dbg(chip->card->dev, "wss: port = 0x%lx, id = 0x%x\n", chip->port, id);
++	if (id != 0x0a) {
++		dev_err(chip->card->dev, "invalid device with id 0x%x\n", id);
++		return -ENODEV;	/* no valid device found */
++	}
++
++	rev = snd_wss_in(chip, CS4231_VERSION) & 0xe7;
++	/* This is 0x3 for my IBM 560z
++	 * Compatibility ID (I25)
++	 * Default = 00000011
++	 * D7 D6 D5 D4 D3 D2 D1 D0
++	 * V2 V1 V0 CID4 CID3 CID2 CID1 CID0
++	 * CID4-CID0 00011 - CS4236, CS4237B */
++	dev_dbg(chip->card->dev, "CS4231: VERSION (I25) = 0x%x\n", rev);
++	if (rev != 0x03) {
++		dev_err(chip->card->dev, "not the 560z and not the CS4237B because version 0x%x\n", rev);
++		return -ENODEV;
+ 	}
++	/* I kept only up here from the "if ((hw & WSS_HW_TYPE_MASK) == WSS_HW_DETECT)" code block */
++
++	/* This block was added when rewriting for 6.18.8.
++	 * I found it here in the original 6.18.8 code. It was
++	 * placed below the next block in my original patch.  */
+ 	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
+ 		wss_inb(chip, CS4231P(STATUS));	/* clear any pendings IRQ */
+ 		wss_outb(chip, CS4231P(STATUS), 0);
+ 		mb();
+ 	}
++	/* This part below I kept, but heavily simplified. The next
++	 * comment block comes from the original code and gives an
++	 * idea of the original sequence. */
++	/* ok.. try check hardware version for CS4236+ chips */
++	/* CS4236_VERSION is 0x9c which is 0b1001 1100
++	 * Extended Register Access (I23)
++	 * D7  D6  D5  D4  D3   D2  D1  D0
++	 * XA3 XA2 XA1 XA0 XRAE XA4 res ACF
++	 * 1   0   0   1   1    1   0   0
++	 * XA4 Extended Register Address bit 4.
++	 * Along with XA3-XA0, enables ac-
++	 * cess to extended registers X16,
++	 * X17, and X25. MODE 3 only.
++	 * XA3-XA0
++	 * Extended Register Address. Along
++	 * with XA4, sets the register number
++	 * (X0-X17+X25) accessed when
++	 * XRAE is set. MODE 3 only. See the
++	 * WSS Extended Register section for
++	 * more details.
++	 * So XA4 being set, this enables access to X16,X17 and X25
++	 * With XA3-XA0 set to 1001 we have 16+9=25. So we read
++	 * X25 which is Chip Version and ID.
++	 * D7 D6 D5 D4 D3 D2 D1 D0
++	 * V2 V1 V0 CID4 CID3 CID2 CID1 CID0
++	 * my 560z reads 0xe8
++	 * e - 1110 - V2-V0 are 111 - 111 - Revision E
++	 * 8 - 1000 - CID4-CID0 are 01000 - 01000 - CS4237B*/
++	/* rev is 0xe8*/
++	rev = snd_cs4236_ext_in(chip, CS4236_VERSION);
++	if ((rev & 0x1f) == 0x08) {	/* CS4237B */
++		chip->hardware = WSS_HW_CS4237B;
++		switch (rev >> 5) {
++			case 0:
++			case 6:
++			case 7:
++				break;
++			default:
++				dev_err(chip->card->dev, "unknown CS4237B chip (enhanced version = 0x%x)\n", id);
++				/* I added this after porting the code changes to 4.4.302 since it would be best to
++				 * stop the probe instead of continuing with a result that might be broken. */
++				return -ENODEV;
++		}
++	}
++	else {
++		dev_err(chip->card->dev, "unknown CS4236/CS423xB chip (enhanced version = 0x%x)\n", id);
++		/* I added this after porting the code changes to 4.4.302 since it would be best to
++		 * stop the probe instead of continuing with a result that might be broken. */
++		return -ENODEV;
++	}
+ 
+-	if (!(chip->hardware & WSS_HW_AD1848_MASK))
+-		chip->image[CS4231_MISC_INFO] = CS4231_MODE2;
+-	switch (chip->hardware) {
+-	case WSS_HW_INTERWAVE:
+-		chip->image[CS4231_MISC_INFO] = CS4231_IW_MODE3;
+-		break;
+-	case WSS_HW_CS4235:
+-	case WSS_HW_CS4236B:
+-	case WSS_HW_CS4237B:
+-	case WSS_HW_CS4238B:
+-	case WSS_HW_CS4239:
+-		if (hw == WSS_HW_DETECT3)
+-			chip->image[CS4231_MISC_INFO] = CS4231_4236_MODE3;
+-		else
+-			chip->hardware = WSS_HW_CS4236;
+-		break;
+-	}
+-
+-	chip->image[CS4231_IFACE_CTRL] =
+-	    (chip->image[CS4231_IFACE_CTRL] & ~CS4231_SINGLE_DMA) |
+-	    (chip->single_dma ? CS4231_SINGLE_DMA : 0);
+-	if (chip->hardware != WSS_HW_OPTI93X) {
+-		chip->image[CS4231_ALT_FEATURE_1] = 0x80;
+-		chip->image[CS4231_ALT_FEATURE_2] =
+-			chip->hardware == WSS_HW_INTERWAVE ? 0xc2 : 0x01;
+-	}
+-	/* enable fine grained frequency selection */
+-	if (chip->hardware == WSS_HW_AD1845)
+-		chip->image[AD1845_PWR_DOWN] = 8;
+ 
++	/* 560z is a CS4237B. simplifying. MODE 3 is like MODE 2 + extended registers */
++	chip->image[CS4231_MISC_INFO] = CS4231_4236_MODE3;
++	/* 560z is a 2 dma. simplifying*/
++	chip->image[CS4231_IFACE_CTRL] = chip->image[CS4231_IFACE_CTRL] & ~CS4231_SINGLE_DMA;
++	/* 560z is a CS4237B. simplifying */
+ 	ptr = (unsigned char *) &chip->image;
+-	regnum = (chip->hardware & WSS_HW_AD1848_MASK) ? 16 : 32;
++	/* 560z is a CS4237B. simplifying */
++	regnum = 32;
+ 	snd_wss_mce_down(chip);
+ 	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
++	/* TODO figure out why we set each indirect register...
++	 * From what I have seen, this is not entirely needed. We could skip
++	 * a number of registers, but since the sound is working now, I didn't
++	 * continue the investigation.
++	 * Setting the MODE3 on CMS1,0 bits in I12 here. */
+ 		for (i = 0; i < regnum; i++)	/* ok.. fill all registers */
+ 			snd_wss_out(chip, i, *ptr++);
+ 	}
+ 	snd_wss_mce_up(chip);
+ 	snd_wss_mce_down(chip);
+ 
++	/* TODO can this delay be removed? Sound is working; didn't continue the investigation. */
+ 	mdelay(2);
+ 
+-	/* ok.. try check hardware version for CS4236+ chips */
+-	if ((hw & WSS_HW_TYPE_MASK) == WSS_HW_DETECT) {
+-		if (chip->hardware == WSS_HW_CS4236B) {
+-			rev = snd_cs4236_ext_in(chip, CS4236_VERSION);
+-			snd_cs4236_ext_out(chip, CS4236_VERSION, 0xff);
+-			id = snd_cs4236_ext_in(chip, CS4236_VERSION);
+-			snd_cs4236_ext_out(chip, CS4236_VERSION, rev);
+-			dev_dbg(chip->card->dev,
+-				"CS4231: ext version; rev = 0x%x, id = 0x%x\n",
+-				rev, id);
+-			if ((id & 0x1f) == 0x1d) {	/* CS4235 */
+-				chip->hardware = WSS_HW_CS4235;
+-				switch (id >> 5) {
+-				case 4:
+-				case 5:
+-				case 6:
+-					break;
+-				default:
+-					dev_warn(chip->card->dev,
+-						 "unknown CS4235 chip (enhanced version = 0x%x)\n",
+-						 id);
+-				}
+-			} else if ((id & 0x1f) == 0x0b) {	/* CS4236/B */
+-				switch (id >> 5) {
+-				case 4:
+-				case 5:
+-				case 6:
+-				case 7:
+-					chip->hardware = WSS_HW_CS4236B;
+-					break;
+-				default:
+-					dev_warn(chip->card->dev,
+-						 "unknown CS4236 chip (enhanced version = 0x%x)\n",
+-						 id);
+-				}
+-			} else if ((id & 0x1f) == 0x08) {	/* CS4237B */
+-				chip->hardware = WSS_HW_CS4237B;
+-				switch (id >> 5) {
+-				case 4:
+-				case 5:
+-				case 6:
+-				case 7:
+-					break;
+-				default:
+-					dev_warn(chip->card->dev,
+-						 "unknown CS4237B chip (enhanced version = 0x%x)\n",
+-						 id);
+-				}
+-			} else if ((id & 0x1f) == 0x09) {	/* CS4238B */
+-				chip->hardware = WSS_HW_CS4238B;
+-				switch (id >> 5) {
+-				case 5:
+-				case 6:
+-				case 7:
+-					break;
+-				default:
+-					dev_warn(chip->card->dev,
+-						 "unknown CS4238B chip (enhanced version = 0x%x)\n",
+-						 id);
+-				}
+-			} else if ((id & 0x1f) == 0x1e) {	/* CS4239 */
+-				chip->hardware = WSS_HW_CS4239;
+-				switch (id >> 5) {
+-				case 4:
+-				case 5:
+-				case 6:
+-					break;
+-				default:
+-					dev_warn(chip->card->dev,
+-						 "unknown CS4239 chip (enhanced version = 0x%x)\n",
+-						 id);
+-				}
+-			} else {
+-				dev_warn(chip->card->dev,
+-					 "unknown CS4236/CS423xB chip (enhanced version = 0x%x)\n",
+-					 id);
+-			}
+-		}
+-	}
+ 	return 0;		/* all things are ok.. */
+ }
+ 
+@@ -1431,20 +1299,6 @@
+ 
+ 	runtime->hw = snd_wss_playback;
+ 
+-	/* hardware limitation of older chipsets */
+-	if (chip->hardware & WSS_HW_AD1848_MASK)
+-		runtime->hw.formats &= ~(SNDRV_PCM_FMTBIT_IMA_ADPCM |
+-					 SNDRV_PCM_FMTBIT_S16_BE);
+-
+-	/* hardware bug in InterWave chipset */
+-	if (chip->hardware == WSS_HW_INTERWAVE && chip->dma1 > 3)
+-		runtime->hw.formats &= ~SNDRV_PCM_FMTBIT_MU_LAW;
+-
+-	/* hardware limitation of cheap chips */
+-	if (chip->hardware == WSS_HW_CS4235 ||
+-	    chip->hardware == WSS_HW_CS4239)
+-		runtime->hw.formats = SNDRV_PCM_FMTBIT_U8 | SNDRV_PCM_FMTBIT_S16_LE;
+-
+ 	snd_pcm_limit_isa_dma_size(chip->dma1, &runtime->hw.buffer_bytes_max);
+ 	snd_pcm_limit_isa_dma_size(chip->dma1, &runtime->hw.period_bytes_max);
+ 
+@@ -1474,18 +1328,6 @@
+ 
+ 	runtime->hw = snd_wss_capture;
+ 
+-	/* hardware limitation of older chipsets */
+-	if (chip->hardware & WSS_HW_AD1848_MASK)
+-		runtime->hw.formats &= ~(SNDRV_PCM_FMTBIT_IMA_ADPCM |
+-					 SNDRV_PCM_FMTBIT_S16_BE);
+-
+-	/* hardware limitation of cheap chips */
+-	if (chip->hardware == WSS_HW_CS4235 ||
+-	    chip->hardware == WSS_HW_CS4239 ||
+-	    chip->hardware == WSS_HW_OPTI93X)
+-		runtime->hw.formats = SNDRV_PCM_FMTBIT_U8 |
+-				      SNDRV_PCM_FMTBIT_S16_LE;
+-
+ 	snd_pcm_limit_isa_dma_size(chip->dma2, &runtime->hw.buffer_bytes_max);
+ 	snd_pcm_limit_isa_dma_size(chip->dma2, &runtime->hw.period_bytes_max);
+ 
+@@ -1525,25 +1367,6 @@
+ 	return 0;
+ }
+ 
+-static void snd_wss_thinkpad_twiddle(struct snd_wss *chip, int on)
+-{
+-	int tmp;
+-
+-	if (!chip->thinkpad_flag)
+-		return;
+-
+-	outb(0x1c, AD1848_THINKPAD_CTL_PORT1);
+-	tmp = inb(AD1848_THINKPAD_CTL_PORT2);
+-
+-	if (on)
+-		/* turn it on */
+-		tmp |= AD1848_THINKPAD_CS4248_ENABLE_BIT;
+-	else
+-		/* turn it off */
+-		tmp &= ~AD1848_THINKPAD_CS4248_ENABLE_BIT;
+-
+-	outb(tmp, AD1848_THINKPAD_CTL_PORT2);
+-}
+ 
+ #ifdef CONFIG_PM
+ 
+@@ -1693,7 +1516,6 @@
+ 
+ int snd_wss_create(struct snd_card *card,
+ 		      unsigned long port,
+-		      unsigned long cport,
+ 		      int irq, int dma1, int dma2,
+ 		      unsigned short hardware,
+ 		      unsigned short hwshare,
+@@ -1716,16 +1538,6 @@
+ 		return -EBUSY;
+ 	}
+ 	chip->port = port;
+-	if ((long)cport >= 0) {
+-		chip->res_cport = devm_request_region(card->dev, cport, 8,
+-						      "CS4232 Control");
+-		if (!chip->res_cport) {
+-			dev_err(chip->card->dev,
+-				"wss: can't grab control port 0x%lx\n", cport);
+-			return -ENODEV;
+-		}
+-	}
+-	chip->cport = cport;
+ 	if (!(hwshare & WSS_HWSHARE_IRQ))
+ 		if (devm_request_irq(card->dev, irq, snd_wss_interrupt, 0,
+ 				     "WSS", (void *) chip)) {
+@@ -1745,17 +1557,9 @@
+ 		dev_err(chip->card->dev, "wss: can't grab DMA2 %d\n", dma2);
+ 		return -EBUSY;
+ 	}
+-	if (dma1 == dma2 || dma2 < 0) {
+-		chip->single_dma = 1;
+-		chip->dma2 = chip->dma1;
+-	} else
+-		chip->dma2 = dma2;
+-
+-	if (hardware == WSS_HW_THINKPAD) {
+-		chip->thinkpad_flag = 1;
+-		chip->hardware = WSS_HW_DETECT; /* reset */
+-		snd_wss_thinkpad_twiddle(chip, 1);
+-	}
++	/* For my 560z, dma1=1 and dma2=3 so I removed the chip->single_dma
++	 * and all the code related to it. */
++	chip->dma2 = dma2;
+ 
+ 	/* global setup */
+ 	if (snd_wss_probe(chip) < 0)
+@@ -1814,8 +1618,6 @@
+ 	/* global setup */
+ 	pcm->private_data = chip;
+ 	pcm->info_flags = 0;
+-	if (chip->single_dma)
+-		pcm->info_flags |= SNDRV_PCM_INFO_HALF_DUPLEX;
+ 	if (chip->hardware != WSS_HW_INTERWAVE)
+ 		pcm->info_flags |= SNDRV_PCM_INFO_JOINT_DUPLEX;
+ 	strscpy(pcm->name, snd_wss_chip_id(chip));
