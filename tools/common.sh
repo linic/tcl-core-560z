@@ -57,3 +57,31 @@ triplet_separator()
   return 0 
 }
 
+# .config- and patches- have suffixes.
+get_suffix()
+{
+  KERNEL_VERSION="$1"
+  triplet_separator "$@"
+  SUFFIX=""
+  case $1 in
+    4|5)
+      SUFFIX="$1"
+      ;;
+    6)
+      if [ $2 < 18 ]; then
+        SUFFIX="$1"
+      else
+        SUFFIX="$1.$2"
+      fi
+      ;;
+  esac
+
+  if [ -z "$SUFFIX" ]; then
+    echo "No suffix for $KERNEL_VERSION"
+    return 1
+  fi
+
+  echo "Using $SUFFIX"
+
+  return 0
+}

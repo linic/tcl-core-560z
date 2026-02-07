@@ -23,20 +23,12 @@ usage()
 pick_config()
 {
   KERNEL_VERSION="$1"
-  triplet_separator "$@"
-  echo "Picking config $1 $2 $3 $4"
+  get_suffix "$@"
+  echo "Picking config $SUFFIX"
 
-  CONFIG_FILE=""
-  if [ .config-$KERNEL_VERSION ]; then
-    CONFIG_FILE=".config-$KERNEL_VERSION"
-  elif [ .config-$1.$2 ]; then
-    CONFIG_FILE=".config-$1.$2"
-  elif [ .config-$1 ]; then
-    CONFIG_FILE=".config-$1"
-  fi
-
-  if [ -z "$CONFIG_FILE" ]; then
-    echo "Could not find a suitable .config file for $KERNEL_VERSION"
+  CONFIG_FILE=".config-$SUFFIX"
+  if [ ! -f "$CONFIG_FILE" ]; then
+    echo "$CONFIG_FILE does not exist for $KERNEL_VERSION"
     return 1
   fi
 

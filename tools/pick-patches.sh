@@ -34,20 +34,12 @@ usage()
 pick_patches()
 {
   KERNEL_VERSION="$1"
-  triplet_separator "$@"
-  echo "Picking patches $1 $2 $3 $4"
+  get_suffix "$@"
+  echo "Picking patches $SUFFIX"
 
-  PATCH_DIR=""
-  if [ patches-$KERNEL_VERSION ]; then
-    PATCH_DIR="patches-$KERNEL_VERSION"
-  elif [ patches-$1.$2 ]; then
-    PATCH_DIR="patches-$1.$2"
-  elif [ patches-$1 ]; then
-    PATCH_DIR="patches-$1"
-  fi
-
-  if [ -z "$PATCH_DIR" ]; then
-    echo "Could not find patches for $KERNEL_VERSION"
+  PATCHES_DIR="patches-$SUFFIX"
+  if [ ! -d "$PATCHES_DIR" ]; then
+    echo "$PATCHES_DIR does not exist for $KERNEL_VERSION"
     return 1
   fi
 
