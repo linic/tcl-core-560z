@@ -278,12 +278,12 @@ sudo docker cp tcl-core-560z-main-1:$CACHE/wireless-$KERNEL_ID.tcz $HOST_CACHE/
 sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/bzImage-$RELEASE_VERSION ./
 md5sum ./bzImage-$RELEASE_VERSION > ./bzImage-$RELEASE_VERSION.md5.txt
 cat ./bzImage-$RELEASE_VERSION.md5.txt
-sudo docker cp tcl-core-560z-main-1:$CACHE/bzImage-$KERNEL_VERSION_VERSION $HOST_CACHE/
+sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/bzImage-$RELEASE_VERSION $HOST_CACHE/
 
 sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/core-$RELEASE_VERSION.gz ./
 md5sum ./core-$RELEASE_VERSION.gz > ./core-$RELEASE_VERSION.gz.md5.txt
 cat ./core-$RELEASE_VERSION.gz.md5.txt
-sudo docker cp tcl-core-560z-main-1:$CACHE/core-$KERNEL_VERSION.gz $HOST_CACHE/
+sudo docker cp tcl-core-560z-main-1:$RELEASE_DIRECTORY/core-$RELEASE_VERSION.gz $HOST_CACHE/
 
 sudo docker cp tcl-core-560z-main-1:$CACHE/.config.md5.txt $HOST_CACHE/
 

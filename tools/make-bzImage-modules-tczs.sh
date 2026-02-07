@@ -124,8 +124,8 @@ else
   $TOOLS/pick-config.sh $KERNEL_BRANCH
 
   mv $CS4237B_PATCHES/* .
-  $TOOLS/pick-patches.sh $KERNEL_BRANCH
-  $TOOLS/patch-cs4236.sh $KERNEL_BRANCH
+  $TOOLS/pick-patches.sh $KERNEL_VERSION
+  $TOOLS/patch-cs4236.sh
   make oldconfig
   make kernelrelease
   # Make the kernel
