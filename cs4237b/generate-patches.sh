@@ -6,8 +6,8 @@
 ###################################################################
 
 echo "Generating patches for $1"
-SOURCE=source-"$1"
-PATCH=patches-"$1"
+SOURCE="source-$1"
+PATCH="patches/patches-$1"
 mkdir -pv patches-"$1"
 diff -u $SOURCE/sound/isa/wss/wss_lib.c.orig $SOURCE/sound/isa/wss/wss_lib.c  > $PATCH/wss_lib.c.patch
 diff -u $SOURCE/sound/isa/cs423x/cs4236_lib.c.orig $SOURCE/sound/isa/cs423x/cs4236_lib.c  > $PATCH/cs4236_lib.c.patch

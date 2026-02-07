@@ -1,7 +1,7 @@
 #!/bin/sh
 
 ###################################################################
-# Copyright (C) 2025  linic@hotmail.ca Subject to GPL-3.0 license.#
+# Copyright (C) 2026 linic@hotmail.ca Subject to GPL-3.0 license. #
 # https://github.com/linic/tcl-core-560z                          #
 ###################################################################
 
@@ -11,40 +11,58 @@
 # (like 5.10.235) which use the .config-v5.x file.
 ##################################################################
 
-set -e
-trap 'echo "Error on line $LINENO"' ERR
+# Source (include) functions from tools/common.sh
+. "$(dirname "$0")/common.sh"
 
-ERROR_MESSAGE="Please enter the linux kernel branch (v5.x or v6.)"
-if [ ! $# -eq 1 ]; then
-  echo $ERROR_MESSAGE
-  exit 1
-fi
+usage()
+{
+  echo "Please enter the linux kernel version"
+  echo "Example ./pick-config.sh 6.18.8"
+}
 
-VERSION=$1
-if [ $VERSION != "v4.x" ] && [ $VERSION != "v5.x" ] && [ $VERSION != "v6.x" ]; then
-  echo "Only v4.x, v5.x or v6.x are supported for now."
-  exit 2
-fi
-if [ ! .config-v4.x ] && [ ! .config-v5.x ] && [ ! .config-v6.x ]; then
-  echo "Please make sure the directory you're running is the "\
-    "extracted linux kernel directory in which .config-v4.x, .config-v5.x "\
-    ".config-v6.x from https://github.com/linic/tcl-core-560z "\
-    "where copied because this script needs to pick which .config "\
-    "to apply."
-  exit 3
-fi
-if [ $VERSION == "v4.x" ]; then
-  rm -v .config-v6.x
-  rm -v .config-v5.x
-  mv -v .config-v4.x .config
-elif [ $VERSION == "v5.x" ]; then
-  rm -v .config-v6.x
-  rm -v .config-v4.x
-  mv -v .config-v5.x .config
-elif [ $VERSION == "v6.x" ]; then
-  rm -v .config-v5.x
-  rm -v .config-v4.x
-  mv -v .config-v6.x .config
-fi
-exit 0
+pick_config()
+{
+  KERNEL_VERSION="$1"
+  triplet_separator "$@"
+  echo "Picking config $1 $2 $3 $4"
 
+  CONFIG_FILE=""
+  if [ .config-$KERNEL_VERSION ]; then
+    CONFIG_FILE=".config-$KERNEL_VERSION"
+  elif [ .config-$1.$2 ]; then
+    CONFIG_FILE=".config-$1.$2"
+  elif [ .config-$1 ]; then
+    CONFIG_FILE=".config-$1"
+  fi
+
+  if [ -z "$CONFIG_FILE" ]; then
+    echo "Could not find a suitable .config file for $KERNEL_VERSION"
+    return 1
+  fi
+
+  mv -v "$CONFIG_FILE" ".config"
+  rm -rvf ".config-*"
+
+  return 0
+}
+
+main()
+{
+  if [ ! $# -eq 1 ]; then
+    usage "$@"
+    exit "$?"
+  fi
+
+  case "$1" in
+    *.*.*)
+      pick_config "$1"
+      ;;
+    *)
+      usage "$@"
+      ;;
+  esac
+
+  exit "$?"
+}
+
+main "$@"

@@ -46,14 +46,11 @@ ENV CORE_TEMP_PATH=$HOME_TC/coretmp
 # don't load it because they don't have the permission and they default to a default
 # config which breaks in a confusing way.
 ENV KERNEL_CONFIGS=$HOME_TC/kernel_configs
-COPY --chown=tc:staff .config-v6.x $KERNEL_CONFIGS/.config-v6.x
-COPY --chown=tc:staff .config-v5.x $KERNEL_CONFIGS/.config-v5.x
-COPY --chown=tc:staff .config-v4.x $KERNEL_CONFIGS/.config-v4.x
+RUN mkdir -pv $KERNEL_CONFIGS
+COPY --chown=tc:staff .config-* $KERNEL_CONFIGS/
 ENV CS4237B_PATCHES=$HOME_TC/cs4237b
-COPY --chown=tc:staff cs4237b/patches-4.4.302-cip97 $CS4237B_PATCHES/patches-4.4.302-cip97
-COPY --chown=tc:staff cs4237b/patches-5.10.235 $CS4237B_PATCHES/patches-5.10.235
-COPY --chown=tc:staff cs4237b/patches-6 $CS4237B_PATCHES/patches-6
-COPY --chown=tc:staff cs4237b/patches-6.18.8 $CS4237B_PATCHES/patches-6.18.8
+RUN mkdir -pv $CS4237B_PATCHES
+COPY --chown=tc:staff cs4237b/patches/ $CS4237B_PATCHES/
 ENV CACHE=$HOME_TC/cache
 COPY --chown=tc:staff cache/$KERNEL_VERSION $CACHE/$KERNEL_VERSION
 COPY --chown=tc:staff cache/rootfs $CACHE/rootfs
