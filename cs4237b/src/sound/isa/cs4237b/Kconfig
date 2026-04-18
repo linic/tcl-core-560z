@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config SND_CS4237B
+	tristate "Cirrus Logic CS4237B (no control port) driver"
+	depends on PNP
+	select ISAPNP
+	select SND_WSS_LIB
+	select SND_MPU401_UART
+	help
+	  Say Y or M here to include support for CS4237B chips on boards
+	  where the separate "Control" PnP logical device (EISA ID
+	  CSC0010) is not exposed by the BIOS.
+
+	  The best-known example is the IBM/Lenovo ThinkPad 560Z, on
+	  which the stock snd-cs4236 driver fails with:
+
+	      cs4236+ chip detected, but control port 0xffffffff is not valid
+
+	  This driver talks to the chip only through the WSS-side
+	  registers and therefore works without CSC0010 being present.
+	  As a consequence, features that live exclusively behind the
+	  control port are NOT available:
+
+	    * S/PDIF (IEC958) output
+	    * Hardware 3D effects (3D Space / 3D Center / 3D Mono)
+	    * Wavetable synthesis serial-port toggling (C8)
+
+	  PCM playback, PCM capture, FM synthesis (if wired), mixer
+	  volume, microphone in and line in all work.
+
+	  If you also have CONFIG_SND_CS4236 enabled, only one of the
+	  two modules can bind to a given card at a time. On boards
+	  that do expose CSC0010 you probably want the stock driver;
+	  on boards that do not, you want this one. Use modprobe.d
+	  blacklist entries if necessary.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called snd-cs4237b.
+
+config SND_CS4237B_DEBUG
+	bool "Verbose debug output for CS4237B driver"
+	depends on SND_CS4237B
+	help
+	  When enabled, the CS4237B driver logs detailed messages at
+	  KERN_ERR level (not KERN_DEBUG, so they show up without
+	  dynamic debug being turned on) covering:
+
+	    * each register write during probe
+	    * MCE up/down state transitions
+	    * IRQ status decode
+	    * chip version decode
+
+	  Useful for bring-up on new boards; leave off for normal use.
+
+	  If unsure, say N.
