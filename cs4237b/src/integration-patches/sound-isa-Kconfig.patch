@@ -1,0 +1,19 @@
+Source the cs4237b/ sub-Kconfig from sound/isa/Kconfig.
+
+Single-line addition inside `if SND_ISA`, placed in the alphabetical
+slot right after the existing CS4236+ entry, so that the new option
+appears next to its sibling driver in `make menuconfig`.
+
+Generated against Linux v6.18.8.
+
+--- a/sound/isa/Kconfig
++++ b/sound/isa/Kconfig
+@@ -147,6 +147,8 @@ config SND_CS4236
+ 	  To compile this driver as a module, choose M here: the module
+ 	  will be called snd-cs4236.
+
++source "sound/isa/cs4237b/Kconfig"
++
+ config SND_ES1688
+ 	tristate "Generic ESS ES688/ES1688 and ES968 PnP driver"
+ 	select SND_OPL3_LIB
