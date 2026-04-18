@@ -1,0 +1,19 @@
+Wire the cs4237b/ sub-directory into sound/isa/Makefile.
+
+Single-line addition: a per-CONFIG obj-y assignment so that the new
+sub-directory is descended into only when CONFIG_SND_CS4237B is
+selected (=m or =y). The existing CONFIG_SND-driven directory list
+is left untouched.
+
+Generated against Linux v6.18.8.
+
+--- a/sound/isa/Makefile
++++ b/sound/isa/Makefile
+@@ -22,5 +22,7 @@ obj-$(CONFIG_SND_OPL3SA2) += snd-opl3sa2.o
+ obj-$(CONFIG_SND_SC6000) += snd-sc6000.o
+ obj-$(CONFIG_SND_SSCAPE) += snd-sscape.o
+
++obj-$(CONFIG_SND_CS4237B) += cs4237b/
++
+ obj-$(CONFIG_SND) += ad1816a/ ad1848/ cs423x/ es1688/ galaxy/ gus/ msnd/ opti9xx/ \
+ 		     sb/ wavefront/ wss/
