@@ -45,8 +45,10 @@ programs compiled for the IBM ThinkPad 560Z can be tested quickly — without a 
 ## Plan
 
 - [x] Phase 0: Research and journal (this file)
-- [ ] Phase 1: chroot setup script (`tcl-chroot.sh`) — low-risk, no new packages needed
-- [ ] Phase 2: QEMU guide — needs Q1, Q3 answered (see below); deferred to next session
+- [x] Phase 1: chroot setup script (`tcl-chroot.sh`) — low-risk, no new packages needed
+- [x] Phase 1b: Answers from Nic incorporated; `build-locally.sh` workflow documented
+- [ ] Phase 1c: Smoke test — Nic to run (requires sudo, which this session does not have)
+- [ ] Phase 2: QEMU guide — deferred; Phase 1 satisfies the stated Q1 goal (run `build-locally.sh`)
 - [ ] Phase 3: Optional integration into `Makefile` or `daily-tools/`
 
 ---
@@ -120,30 +122,95 @@ commands in a custom initrd overlay. This needs more research and Nic's input (s
 - Confirmed UUID = sda1 (same-partition insight).
 - Phase 1 implemented: `tcl-chroot.sh` committed alongside this journal.
 - Phase 2 sketched but deferred — blocked on Q1 and Q3.
+- Nic answered Q1/Q2/Q3: use case is `build-locally.sh`, persistent chroot OK,
+  no guard needed for QEMU bootlocal.sh.
+- Dry-run cpio extract in `/tmp` verified: 9.4 MB userspace; busybox confirmed
+  ELF 32-bit i386; all key binaries present. Full setup blocked on sudo (not
+  available to this session) — handed off to Nic as a smoke-test checklist.
+- Phase 2 (QEMU) deferred: chroot satisfies the stated Q1 goal. A QEMU-specific
+  finding: TCL's init reads `/opt` from the `opt=` block device BEFORE bootlocal.sh
+  runs, so a virtfs-only boot has a chicken-and-egg problem (9p shares can't be
+  mounted early enough). Fix would need a custom tiny ext4 `opt` image or an
+  initrd overlay — documented in the Approach B sketch.
 
 ---
 
-## Clarifying questions for Nic
+## Clarifying questions for Nic — answered 2026-04-19
 
-**Q1: What is the primary testing use case?**
-  (a) Run a compiled binary and check exit code / output
-  (b) Test full TCL extension loading (tce-load, onboot.lst)
-  (c) Both — need the full TCL experience
-  My guess: (a) for now, (c) eventually. Phase 1 covers (a) and partial (b).
+**Q1: Primary testing use case?** → Run `build-locally.sh`-style compilation in the
+32-bit TCL userspace (there are similar scripts in other repos). See the
+"Running build-locally.sh" section below for the workflow.
 
-**Q2: Persistent chroot directory at `/var/lib/tcl-chroot` — OK?**
-The extracted rootfs is ~35 MB. Persistent avoids re-extracting (~5 s) on each
-session. Alternative: extract into `/tmp` on every invocation (slower but auto-cleaned).
-My guess: persistent is fine; you have plenty of disk.
+**Q2: Persistent chroot at `/var/lib/tcl-chroot`?** → Yes, persistent is fine.
+Extracted size measured: **9.4 MB** (not 35 MB as estimated earlier).
 
-**Q3: For QEMU — is modifying `/opt/bootlocal.sh` on the Debian host acceptable?**
-The QEMU guest would read this file (via virtfs) at boot. Any additions would also be
-visible when booting from GRUB (TCL reads `bootlocal.sh` from the partition). If we
-want separate behavior, we'd need a different mechanism (e.g., an initrd overlay or
-a kernel cmdline env var guard). My guess: a guard (`[ -d /sys/bus/virtio ]`) to
-run 9p mounts only inside a VM.
+**Q3: For QEMU, modifying `/opt/bootlocal.sh` — guard needed?** → No guard needed;
+`/opt` changes from TCL and Debian don't conflict (same partition, different boot
+modes never active at the same time). Note: this question is moot for now since
+Phase 2 (QEMU) is deferred — Phase 1 covers the stated goal.
 
 ---
+
+## Running `build-locally.sh` in the chroot (Q1 workflow)
+
+`build-locally.sh` in `tools/` expects to run on a booted TCL with `/home/tc` as the
+tc user's home and `tce-load` available. The chroot provides exactly that.
+
+```sh
+# One-time
+sudo /home/code/mes-repertoires-git/tcl-core-560z/testing-env/tcl-chroot.sh setup
+
+# Each build session
+sudo /home/code/mes-repertoires-git/tcl-core-560z/testing-env/tcl-chroot.sh enter
+
+# Inside the chroot shell:
+cd /home/tc     # the same /home/tc as on Debian host (bind mount)
+# Stage the repo inputs then run the build, exactly as on a real TCL box:
+/home/code/mes-repertoires-git/tcl-core-560z/tools/build-locally.sh \
+    6.18.8.17.1 release rootfs.gz -tinycore-560z
+```
+
+Caveats for this workflow:
+- The chroot's `tce-load -wi <ext>` will succeed without network if the extension is
+  already in `/tce/optional/` (197 are). It will reach out to the mirror only for
+  missing ones — bring up network in the chroot beforehand if needed.
+- `make-bzImage-modules-tczs.sh` downloads kernel source tarballs; needs network
+  inside the chroot. `/etc/resolv.conf` is NOT in the extracted rootfs — copy it in
+  after setup if DNS fails: `sudo cp /etc/resolv.conf /var/lib/tcl-chroot/etc/`.
+- Builds write to `/home/tc/release/<version>/` which is the same bind-mounted host
+  directory — artifacts persist after you exit the chroot.
+
+## Smoke test (Nic to run)
+
+This session did not have sudo, so the script was not exercised. When Nic has a
+moment, run:
+
+```sh
+cd /home/code/mes-repertoires-git/tcl-core-560z/testing-env
+
+# 1. Setup (one-time, ~5 s to extract 9.4 MB cpio)
+sudo ./tcl-chroot.sh setup
+
+# 2. Check status
+sudo ./tcl-chroot.sh status
+# Expected: rootfs extracted, no mounts yet
+
+# 3. Enter and verify
+sudo ./tcl-chroot.sh enter
+# Inside the chroot:
+#   uname -m                      → should print i686 (linux32 personality)
+#   ls /home/tc                   → same content as host /home/tc
+#   ls /tce/optional/ | wc -l     → 197
+#   cat /tce/onboot.lst           → 18 extensions
+#   tce-load -i bash              → should mount squashfs and install
+#   exit
+
+# 4. Clean up
+sudo ./tcl-chroot.sh umount
+sudo ./tcl-chroot.sh status       # all mounts should say [not mounted]
+```
+
+If any step fails, note which and I'll debug next session.
 
 ## Decisions made without input
 
