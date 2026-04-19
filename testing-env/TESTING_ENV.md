@@ -47,9 +47,59 @@ programs compiled for the IBM ThinkPad 560Z can be tested quickly — without a 
 - [x] Phase 0: Research and journal (this file)
 - [x] Phase 1: chroot setup script (`tcl-chroot.sh`) — low-risk, no new packages needed
 - [x] Phase 1b: Answers from Nic incorporated; `build-locally.sh` workflow documented
-- [ ] Phase 1c: Smoke test — Nic to run (requires sudo, which this session does not have)
+- [x] Phase 1c: **Partial** smoke test via unprivileged user namespace — 11 of 17
+  experiments passed; see `EXPERIMENTS.md` for full log (hypothesis / commands /
+  results / findings). Mechanics validated. End-to-end `build-locally.sh` still
+  requires sudo (see "Blockers" below).
+- [ ] Phase 1d: Full end-to-end test — blocked on sudo or on Nic granting linic
+  staff-group membership.
 - [ ] Phase 2: QEMU guide — deferred; Phase 1 satisfies the stated Q1 goal (run `build-locally.sh`)
 - [ ] Phase 3: Optional integration into `Makefile` or `daily-tools/`
+
+## What's validated unprivileged (Phase 1c)
+
+Via `unshare --user --map-root-user --mount`:
+- ✓ Rootfs extracts (9.4 MB, non-device files; mknod requires real root)
+- ✓ `mount --rbind` works for `/home/tc`, `/tce`, `/opt`, `/proc`, `/sys`, `/dev`
+  (plain `--bind` fails on pseudo-filesystems from an unprivileged user NS)
+- ✓ `chroot` + `linux32` yields `uname -m` = `i686`
+- ✓ 32-bit busybox and sh execute normally
+- ✓ `/tce/optional/` is visible inside the chroot at the same path (197 extensions)
+- ✓ `/tce/onboot.lst` readable
+
+## Blockers that need sudo or group membership
+
+- **`/home/tc` is mode 0750, owned by uid 1001 (tc), gid 50 (staff).**
+  linic (uid 1000) is not in staff, so cannot even `ls /home/tc` on the host —
+  user namespaces do not bypass this because the kernel checks the outer uid/gid
+  for filesystem access. Exp 10 in `EXPERIMENTS.md`.
+- **squashfs kernel module is not loaded**, and neither `modprobe squashfs` nor
+  a direct `mount -t squashfs` works from an unprivileged user NS.
+  Without it, `tce-load` fails. Exps 13–15.
+- **`tce-load` refuses to run as root** ("Don't run this as root") — TCL
+  expects the tc user. Inside a user NS, `su - tc` fails with
+  "can't set groups" because `setgroups(2)` is disabled by default. Exp 12.
+- **No compiler in the base rootfs** (gcc ships via `compiletc.tcz`). Running
+  `build-locally.sh` therefore needs `tce-load`, which needs the above.
+
+## Two ways to unblock (for Nic)
+
+**Option A — Real sudo-based run (simplest):**
+```sh
+sudo /home/code/mes-repertoires-git/tcl-core-560z/testing-env/tcl-chroot.sh setup
+sudo /home/code/mes-repertoires-git/tcl-core-560z/testing-env/tcl-chroot.sh enter
+# Inside the chroot: su - tc; then run build-locally.sh
+```
+
+**Option B — Give linic staff-group access (as Nic suggested):**
+```sh
+sudo usermod -aG staff linic     # linic must re-login for new group to take effect
+sudo chmod g+w /home/tc          # read access alone is not enough; build needs writes
+```
+Even with Option B, the squashfs mount and `tce-load` still need real root
+(module loading + mount syscall), so Option B + sudo for the actual run is the
+most flexible combination. Pure unprivileged end-to-end is not achievable on
+this kernel config.
 
 ---
 
@@ -132,6 +182,23 @@ commands in a custom initrd overlay. This needs more research and Nic's input (s
   runs, so a virtfs-only boot has a chicken-and-egg problem (9p shares can't be
   mounted early enough). Fix would need a custom tiny ext4 `opt` image or an
   initrd overlay — documented in the Approach B sketch.
+
+### 2026-04-19 — Session 1 continued (after usage-limit reset)
+
+- Nic asked "Can you run the test? Try your best."
+- Since no sudo, built an **unprivileged user-namespace equivalent** of
+  `tcl-chroot.sh` using `unshare --user --map-root-user --mount`. Ran 17
+  experiments documented in `EXPERIMENTS.md` (hypothesis / commands / result /
+  finding for each).
+- Core mechanics of the chroot approach validated unprivileged (32-bit shell,
+  bind mounts, rootfs extract, 32-bit binaries run).
+- Identified three hard blockers for end-to-end without sudo: filesystem perms
+  on `/home/tc`, unable to load squashfs, `tce-load` refuses root + `su - tc`
+  blocked in user NS. Each documented with exact commands and error messages.
+- Nic suggested `sudo usermod -aG staff linic` — I can't run sudo but I noted
+  this in EXPERIMENTS.md §fix along with the caveat that write access also
+  needs `chmod g+w /home/tc`, and that squashfs/tce-load still need real root
+  so Option A (full sudo run) remains the complete path.
 
 ---
 
