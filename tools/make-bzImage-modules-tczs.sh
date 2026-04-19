@@ -121,7 +121,7 @@ else
     echo "failed to move kernel configs."
     exit 67
   fi
-  $TOOLS/pick-config.sh $KERNEL_BRANCH
+  $TOOLS/pick-config.sh $KERNEL_VERSION
 
   mv $CS4237B_PATCHES/* .
   $TOOLS/pick-patches.sh $KERNEL_VERSION

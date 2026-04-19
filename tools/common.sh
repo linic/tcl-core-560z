@@ -30,9 +30,13 @@ check_is_digit() {
   return 0
 }
 
+# Split a version string like 6.18.8 or 4.4.302-cip97 on '.' and '-'
+# and validate the first three parts are digits. On success, exports
+# MAJOR, MINOR, PATCH as globals (POSIX sh has no 'local', and
+# 'set --' inside a function does not propagate to the caller, so
+# globals are the cleanest way to return parsed parts).
 triplet_separator()
 {
-  OLD_PARAMS=("$@")
   KERNEL_VERSION=$1
   # IFS is by default space, tab and newline. When 6.18.8 is entered, it is 1 parameter and in the first positional parameter.
   # Set the Internal Field Separator to "." that way each digit of 6.18.8 will be separated in different variables.
@@ -41,37 +45,43 @@ triplet_separator()
   IFS=".-"
   # Use set to reset the positional parameters.
   set -- $KERNEL_VERSION
+  IFS=$OLD_IFS
   # Check if each part is a valid integer
   n_number=1
   for N in "$1" "$2" "$3"; do
     if ! check_is_digit $n_number $N; then
-      echo "Restoring old params because of error in digit check."
-      set -- "${old_params[@]}"
       return 5
     fi
     n_number=$((n_number+1))
   done
-  # Restore IFS otherwise all commands below will split parameters using dots and will fail.
-  IFS=$OLD_IFS
+  MAJOR=$1
+  MINOR=$2
+  PATCH=$3
 
-  return 0 
+  return 0
 }
 
-# .config- and patches- have suffixes.
+# .config- and patches- have suffixes. Reads MAJOR and MINOR that
+# triplet_separator exported, then picks the suffix:
+#   4|5          -> MAJOR
+#   6 MINOR<18   -> MAJOR
+#   6 MINOR>=18  -> MAJOR.MINOR
+# Exports SUFFIX.
 get_suffix()
 {
-  KERNEL_VERSION="$1"
-  triplet_separator "$@"
+  if ! triplet_separator "$@"; then
+    return 5
+  fi
   SUFFIX=""
-  case $1 in
+  case "$MAJOR" in
     4|5)
-      SUFFIX="$1"
+      SUFFIX="$MAJOR"
       ;;
     6)
-      if [ $2 < 18 ]; then
-        SUFFIX="$1"
+      if [ "$MINOR" -lt 18 ]; then
+        SUFFIX="$MAJOR"
       else
-        SUFFIX="$1.$2"
+        SUFFIX="$MAJOR.$MINOR"
       fi
       ;;
   esac

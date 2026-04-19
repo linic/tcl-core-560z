@@ -99,6 +99,12 @@ Ordered roughly by dependency / risk:
 ## Log (what I completed, in order)
 
 - `2026-04-18` — Wrote this journal, reviewed state, posted clarifying questions. No code changes yet.
+- `2026-04-18` — Phase 1 fixes: `common.sh` bash-array lines removed; `[ -lt 18 ]`; `triplet_separator` now exports `MAJOR/MINOR/PATCH`; `get_suffix` uses those and returns non-zero on bad input. `pick-config.sh`: unquoted glob, propagate `get_suffix` failure. `pick-patches.sh`: fix `$PATCH_DIR` → `$PATCHES_DIR`, unquoted glob, add CIP fallback to `patches-$KERNEL_VERSION`. `make-bzImage-modules-tczs.sh`: call `pick-config.sh $KERNEL_VERSION` instead of `$KERNEL_BRANCH`. Smoke-tested pick-config/pick-patches in /tmp with all three cases (6.18.8, 6.12.65, 4.4.302-cip97) and they all picked the correct suffix and cleaned up siblings.
+
+### Decisions made without input from linic (Phase 1)
+
+- **Q5 CIP naming:** did *not* rename `patches-4.4.302-cip97` → `patches-4`. Instead made `pick-patches.sh` fall back to `patches-$KERNEL_VERSION` when the suffix-based dir isn't found. This is reversible and keeps the CIP-specific name visible. If you'd rather rename (option 5a), easy follow-up.
+- **Q7 globals:** went ahead with exporting `MAJOR/MINOR/PATCH` from `triplet_separator`. Necessary to fix the current broken `get_suffix`. Reversible.
 
 ---
 

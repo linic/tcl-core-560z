@@ -33,18 +33,25 @@ usage()
 
 pick_patches()
 {
-  KERNEL_VERSION="$1"
-  get_suffix "$@"
-  echo "Picking patches $SUFFIX"
+  if ! get_suffix "$@"; then
+    return 1
+  fi
+  echo "Picking patches patches-$SUFFIX"
 
   PATCHES_DIR="patches-$SUFFIX"
+  # CIP kernels (e.g. 4.4.302-cip97) use a version-specific dir name
+  # because we only ship patches for the exact supported CIP tag.
+  if [ ! -d "$PATCHES_DIR" ] && [ -d "patches-$KERNEL_VERSION" ]; then
+    PATCHES_DIR="patches-$KERNEL_VERSION"
+  fi
   if [ ! -d "$PATCHES_DIR" ]; then
     echo "$PATCHES_DIR does not exist for $KERNEL_VERSION"
     return 1
   fi
 
-  mv -v "$PATCH_DIR" "patches"
-  rm -rvf "patches-*"
+  mv -v "$PATCHES_DIR" "patches"
+  # Unquoted glob so the shell expands it.
+  rm -rvf patches-*
 
   return 0
 }
