@@ -100,6 +100,7 @@ Ordered roughly by dependency / risk:
 
 - `2026-04-18` — Wrote this journal, reviewed state, posted clarifying questions. No code changes yet.
 - `2026-04-18` — Phase 1 fixes: `common.sh` bash-array lines removed; `[ -lt 18 ]`; `triplet_separator` now exports `MAJOR/MINOR/PATCH`; `get_suffix` uses those and returns non-zero on bad input. `pick-config.sh`: unquoted glob, propagate `get_suffix` failure. `pick-patches.sh`: fix `$PATCH_DIR` → `$PATCHES_DIR`, unquoted glob, add CIP fallback to `patches-$KERNEL_VERSION`. `make-bzImage-modules-tczs.sh`: call `pick-config.sh $KERNEL_VERSION` instead of `$KERNEL_BRANCH`. Smoke-tested pick-config/pick-patches in /tmp with all three cases (6.18.8, 6.12.65, 4.4.302-cip97) and they all picked the correct suffix and cleaned up siblings.
+- `2026-04-18` — Phase 2a: added `quintuplet_separator`, `cip_number_check`, `resolve_kernel_urls` helpers to `common.sh`. Migrated `download-kernel.sh`, `make-bzImage-modules-tczs.sh`, `build-all.sh` to use them — the ~50 lines of IFS/digit-check/URL-building boilerplate is now shared. Variable names also unified: `TCL_MAJOR_VERSION_NUMBER`/`ITERATION_NUMBER` → `TCL_MAJOR`/`ITERATION` in shell; docker env var names unchanged. Broken `[ ! filename ]` guards removed from `build-all.sh` (they were no-ops anyway). Smoke-tested the helpers with 6.12.65.17.1 and 4.4.302.16.1 +cip97.
 
 ### Decisions made without input from linic (Phase 1)
 

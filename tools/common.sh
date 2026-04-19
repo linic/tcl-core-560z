@@ -61,6 +61,67 @@ triplet_separator()
   return 0
 }
 
+# Split a quintuplet like 6.12.65.17.1 on '.' and validate all five
+# parts are digits. On success, exports MAJOR MINOR PATCH TCL_MAJOR
+# ITERATION as globals. 'KERNEL_VERSION' (the triplet) is also set.
+quintuplet_separator()
+{
+  VERSION_QUINTUPLET=$1
+  OLD_IFS=$IFS
+  IFS="."
+  set -- $VERSION_QUINTUPLET
+  IFS=$OLD_IFS
+  n_number=1
+  for N in "$1" "$2" "$3" "$4" "$5"; do
+    if ! check_is_digit $n_number $N; then
+      return 5
+    fi
+    n_number=$((n_number+1))
+  done
+  MAJOR=$1
+  MINOR=$2
+  PATCH=$3
+  TCL_MAJOR=$4
+  ITERATION=$5
+  KERNEL_VERSION=$MAJOR.$MINOR.$PATCH
+
+  return 0
+}
+
+# Validate a CIP number (digits only). No-op (returns 0) if empty.
+cip_number_check()
+{
+  if [ -z "$1" ]; then
+    return 0
+  fi
+  if ! check_is_digit 1 "$1"; then
+    echo "CIP_NUMBER is wrong: $1. For example, enter 97 if your tar name has something like 4.4.302-cip97."
+    return 4
+  fi
+  return 0
+}
+
+# Given MAJOR.MINOR.PATCH (already in KERNEL_VERSION) and an optional
+# CIP number as $1, export KERNEL_BRANCH KERNEL_NAME KERNEL_TAR
+# KERNEL_URL. When a CIP number is given, KERNEL_VERSION is rewritten
+# to include '-cipN' and the CIP kernel.org snapshot URL is used.
+resolve_kernel_urls()
+{
+  CIP_NUMBER=$1
+  KERNEL_BRANCH=v$MAJOR.x
+  KERNEL_NAME=linux-$KERNEL_VERSION
+  KERNEL_TAR=$KERNEL_NAME.tar.xz
+  KERNEL_URL=https://cdn.kernel.org/pub/linux/kernel/$KERNEL_BRANCH/$KERNEL_TAR
+  if [ -n "$CIP_NUMBER" ]; then
+    KERNEL_VERSION=$KERNEL_VERSION-cip$CIP_NUMBER
+    KERNEL_NAME=linux-cip-$KERNEL_VERSION
+    KERNEL_TAR=$KERNEL_NAME.tar.gz
+    KERNEL_URL=https://git.kernel.org/pub/scm/linux/kernel/git/cip/linux-cip.git/snapshot/$KERNEL_TAR
+    echo "$KERNEL_VERSION is maintained by CIP."
+  fi
+  return 0
+}
+
 # .config- and patches- have suffixes. Reads MAJOR and MINOR that
 # triplet_separator exported, then picks the suffix:
 #   4|5          -> MAJOR
