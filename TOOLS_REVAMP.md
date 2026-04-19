@@ -65,34 +65,40 @@ Ordered roughly by dependency / risk:
 ### Phase 1 — fix the existing partial revamp so it runs (quick, safe)
 
 - [x] Write this journal.
-- [ ] Fix `common.sh`: drop bash-array lines; fix `-lt 18`; make `triplet_separator` export `MAJOR/MINOR/PATCH`; make `get_suffix` use them.
-- [ ] Fix `pick-config.sh` glob + reflect `get_suffix` API.
-- [ ] Fix `pick-patches.sh` `$PATCH_DIR`/`$PATCHES_DIR` typo + glob + CIP-aware lookup (see Q5).
-- [ ] Fix `make-bzImage-modules-tczs.sh` call to `pick-config.sh` (pass `$KERNEL_VERSION`, not `$KERNEL_BRANCH`).
-- [ ] Replace broken `[ ! file ]` guards in `build-all.sh` with `[ ! -f … ]` / `[ ! -d … ]` — or just delete the clearly-obsolete ones.
-- [ ] Commit.
+- [x] Fix `common.sh`: drop bash-array lines; fix `-lt 18`; make `triplet_separator` export `MAJOR/MINOR/PATCH`; make `get_suffix` use them.
+- [x] Fix `pick-config.sh` glob + reflect `get_suffix` API.
+- [x] Fix `pick-patches.sh` `$PATCH_DIR`/`$PATCHES_DIR` typo + glob + CIP-aware lookup (see Q5).
+- [x] Fix `make-bzImage-modules-tczs.sh` call to `pick-config.sh` (pass `$KERNEL_VERSION`, not `$KERNEL_BRANCH`).
+- [x] Replace broken `[ ! file ]` guards in `build-all.sh`.
+- [x] Commit (`705eb08`).
 
 ### Phase 2 — deduplicate arg parsing (medium, safe)
 
-- [ ] Add `quintuplet_separator` (or more general `split_version`) to `common.sh` that sets `MAJOR MINOR PATCH TCL_MAJOR ITERATION` as globals.
-- [ ] Add `cip_number_check` helper to `common.sh`.
-- [ ] Add `resolve_kernel_urls` helper to `common.sh` that sets `KERNEL_BRANCH/NAME/TAR/URL/VERSION` from the parsed parts (+ optional CIP). This logic is currently repeated in `build-all.sh`, `make-bzImage-modules-tczs.sh`, and `download-kernel.sh`.
-- [ ] Migrate `build-all.sh`, `make-bzImage-modules-tczs.sh`, `download-kernel.sh` to those helpers. Keep each script's `main()` thin.
-- [ ] Also fold the `usage / main / case` skeleton into `build-all.sh` and `make-bzImage-modules-tczs.sh` (they're currently top-level imperative).
-- [ ] Commit after each migrated script.
+- [x] Add `quintuplet_separator` to `common.sh` that sets `MAJOR MINOR PATCH TCL_MAJOR ITERATION` as globals.
+- [x] Add `cip_number_check` helper to `common.sh`.
+- [x] Add `resolve_kernel_urls` helper to `common.sh`.
+- [x] Migrate `build-all.sh`, `make-bzImage-modules-tczs.sh`, `download-kernel.sh` to those helpers.
+- [ ] **(2b — not done)** Fold the `usage / <verb> / main` skeleton into `build-all.sh` and `make-bzImage-modules-tczs.sh`. They're now shorter but still top-level imperative. This is cosmetic and can wait.
+- [x] Commit (`4cd7f5f`).
 
 ### Phase 3 — `build-locally.sh` (new)
 
-- [ ] New `tools/build-locally.sh`, modelled on `rust-i586/tools/build-locally.sh`. Runs natively on the booted 560Z (no Docker).
-- [ ] Reuses `tce-load-requirements.sh`, `download-kernel.sh`, `pick-config.sh`, `pick-patches.sh`, `patch-cs4236.sh`, `build-modules-tcz.sh`, `compress-modules.sh`, `edit-modules-dep-order.sh`, `package-core-gz.sh`.
-- [ ] Scope: reproduce the artifacts the Dockerfile produces (bzImage + tczs + core.gz) in a working dir on the 560Z. See Q2/Q3.
-- [ ] Commit.
+- [x] New `tools/build-locally.sh`, modelled on `rust-i586/tools/build-locally.sh`.
+- [x] Reuses `tce-load-requirements.sh`, `pick-config.sh`, `pick-patches.sh`, `patch-cs4236.sh`, `build-modules-tcz.sh`, `compress-modules.sh`, `edit-modules-dep-order.sh`, `package-core-gz.sh` by chaining through `make-bzImage-modules-tczs.sh`.
+- [x] Commit (`f59a322`).
+- [ ] **End-to-end run on a booted 560Z** — I can't do this from this workspace. This is the remaining validation work.
 
-### Phase 4 — tidy (optional)
+### Phase 4 — tidy (optional, not done)
 
-- [ ] Refresh copyright headers from 2025 to 2026 on the remaining scripts.
-- [ ] Single consistent header spacing (`Copyright (C) 2026 linic@…` — there are two variants today).
-- [ ] Make sure every script in `tools/` follows the same `usage/<verb>/main` skeleton.
+- [ ] Refresh copyright headers from 2025 to 2026 on `build-all.sh`, `build-modules-tcz.sh`, `edit-config.sh`, `make-bzImage-modules-tczs.sh`, `package-core-gz.sh`, `publish.sh`, `trim.sh` (only touched `build-all.sh` and `make-bzImage-modules-tczs.sh` in this revamp; didn't want to churn files I didn't otherwise modify).
+- [ ] `trap '…' ERR` in `make-bzImage-modules-tczs.sh` and `package-core-gz.sh` is a bashism — POSIX sh has no ERR trap. Pre-existing, not introduced by this revamp. Worth cleaning up at some point.
+
+## Open items / follow-ups
+
+- **Q1-Q7 in this doc** need linic's input for final polish.
+- **Phase 3 end-to-end validation** on the 560Z.
+- **Q5 (CIP naming)**: the current fallback works; if you prefer renaming `patches-4.4.302-cip97` to `patches-4` we should also adjust `cs4237b/generate-patches.sh` and rerun it.
+- **Phase 2b (usage/main skeleton in build-all.sh and make-bzImage-modules-tczs.sh)**: not a correctness issue, but matches the rust-i586 style.
 
 ---
 
