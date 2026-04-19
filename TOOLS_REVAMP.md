@@ -95,10 +95,9 @@ Ordered roughly by dependency / risk:
 
 ## Open items / follow-ups
 
-- **Q1-Q7 in this doc** need linic's input for final polish.
 - **Phase 3 end-to-end validation** on the 560Z.
-- **Q5 (CIP naming)**: the current fallback works; if you prefer renaming `patches-4.4.302-cip97` to `patches-4` we should also adjust `cs4237b/generate-patches.sh` and rerun it.
-- **Phase 2b (usage/main skeleton in build-all.sh and make-bzImage-modules-tczs.sh)**: not a correctness issue, but matches the rust-i586 style.
+- **Phase 2b (usage/main skeleton in build-all.sh and make-bzImage-modules-tczs.sh)**: not a correctness issue, matches the rust-i586 style — deferred by mutual agreement.
+- **New branch for cross-repo build directory convention** (`/home/tc/<repo_name>/release/<version>/` and `/home/tc/<repo_name>/compile/<version>/`): agreed approach, deferred because it touches make-bzImage-modules-tczs.sh + Dockerfile + all three repos (tcl-core-560z, tcl-core-rust-i586, rust-i586) — deserves its own branch.
 
 ---
 
@@ -108,6 +107,7 @@ Ordered roughly by dependency / risk:
 - `2026-04-18` — Phase 1 fixes: `common.sh` bash-array lines removed; `[ -lt 18 ]`; `triplet_separator` now exports `MAJOR/MINOR/PATCH`; `get_suffix` uses those and returns non-zero on bad input. `pick-config.sh`: unquoted glob, propagate `get_suffix` failure. `pick-patches.sh`: fix `$PATCH_DIR` → `$PATCHES_DIR`, unquoted glob, add CIP fallback to `patches-$KERNEL_VERSION`. `make-bzImage-modules-tczs.sh`: call `pick-config.sh $KERNEL_VERSION` instead of `$KERNEL_BRANCH`. Smoke-tested pick-config/pick-patches in /tmp with all three cases (6.18.8, 6.12.65, 4.4.302-cip97) and they all picked the correct suffix and cleaned up siblings.
 - `2026-04-18` — Phase 2a: added `quintuplet_separator`, `cip_number_check`, `resolve_kernel_urls` helpers to `common.sh`. Migrated `download-kernel.sh`, `make-bzImage-modules-tczs.sh`, `build-all.sh` to use them — the ~50 lines of IFS/digit-check/URL-building boilerplate is now shared. Variable names also unified: `TCL_MAJOR_VERSION_NUMBER`/`ITERATION_NUMBER` → `TCL_MAJOR`/`ITERATION` in shell; docker env var names unchanged. Broken `[ ! filename ]` guards removed from `build-all.sh` (they were no-ops anyway). Smoke-tested the helpers with 6.12.65.17.1 and 4.4.302.16.1 +cip97.
 - `2026-04-18` — Phase 3: new `tools/build-locally.sh`. Mirrors the `rust-i586` pattern: arg parsing (same shape as `build-all.sh` minus `TCL_DOCKER_IMAGE_VERSION`), stages the repo's `.config-*`, `cs4237b/patches/`, `tools/` and `cache/` into `/home/tc/{kernel_configs,cs4237b,tools,cache}` (no-op if already staged), exports `TCL_VERSION=$TCL_MAJOR.x` + `TCL_RELEASE_TYPE` so `package-core-gz.sh` can find them, then calls `tce-load-requirements.sh` and `make-bzImage-modules-tczs.sh`. Usage / bad-input paths smoke-tested on host; end-to-end run on the 560Z itself is out of reach from this workspace (Q2/Q3 expected to confirm scope).
+- `2026-04-19` — linic answered Q1–Q7. Q2 (directory convention `/home/tc/<repo_name>/...`) agreed but deferred to new branch; Q5 (a) confirmed. Renamed all version-specific patch dirs to suffix-based names: `patches-4.4.302-cip97` → `patches-4`, `patches-5.10.235` → `patches-5`, `patches-6.18.8` → `patches-6.18` (`patches-6` already correct). Fixed bug in `make-bzImage-modules-tczs.sh`: cache-hit path used `.config-$KERNEL_BRANCH` (old v-prefixed name) instead of `.config-$SUFFIX`; added `get_suffix "$MAJOR.$MINOR.$PATCH"` call after `resolve_kernel_urls` and switched the `cp` to use `$SUFFIX`.
 
 ### Decisions made without input from linic (Phase 3)
 
@@ -121,41 +121,27 @@ Ordered roughly by dependency / risk:
 
 ---
 
-## Clarifying questions for linic
+## Clarifying questions for linic (answered 2026-04-19)
 
-Please answer any you want me to respect. I'll proceed on the ones I'm confident about in the meantime and flag decisions I made unilaterally in the **Log** section above each commit.
+**Q1. ✓** Uniformize on `$KERNEL_VERSION` for both pick-config.sh and pick-patches.sh. Done in Phase 1.
 
-**Q1. pick-config.sh / pick-patches.sh input API.**
-Currently `make-bzImage-modules-tczs.sh` calls `pick-config.sh $KERNEL_BRANCH` (e.g. `v6.x`) and `pick-patches.sh $KERNEL_VERSION` (e.g. `4.4.302-cip97`). The rewritten scripts expect a triplet. Do you want both scripts to take the same thing (I'd pick `$KERNEL_VERSION` for uniformity), or keep them different?
+**Q2. ✓ (deferred)** Convention: release files go to `/home/tc/<repo_name>/release/<version>/`, compilation files to `/home/tc/<repo_name>/compile/<version>/`. Apply to Docker builds too. Agreed — deferred to a new branch because it touches make-bzImage-modules-tczs.sh + Dockerfile + all three repos.
 
-**Q2. build-locally.sh scope.**
-Should it produce the same set of artifacts the Docker build produces (bzImage + alsa/ipv6-netfilter/net/parport/pcmcia/usb/wireless tczs + core.gz + md5 files) in a local release/ directory? Or just bzImage + modules in `/home/tc` so you can test boot it manually?
+**Q3. ✓** `VERSION_QUINTUPLET TCL_RELEASE_TYPE CORE_GZ LOCAL_VERSION [CIP_NUMBER]` — no `TCL_DOCKER_IMAGE_VERSION`. Done in Phase 3.
 
-**Q3. build-locally.sh args.**
-Match `build-all.sh`: `VERSION_QUINTUPLET TCL_RELEASE_TYPE core.gz|rootfs.gz LOCAL_VERSION TCL_DOCKER_IMAGE_VERSION [CIP_NUMBER]`? Or simpler?
-(Defaults I'd pick: yes to all args except `TCL_RELEASE_TYPE` which is only needed for publish, and except `TCL_DOCKER_IMAGE_VERSION` which is meaningless without Docker.)
+**Q4. ✓** More `.config-6.N` variants may appear when cs4237b patches need updating for new kernel.org changes. `get_suffix` hardcodes known mappings; a new entry will be added when a new variant appears.
 
-**Q4. `.config-<suffix>` mapping.**
-`get_suffix` today maps: `4 → 4`, `5 → 5`, `6 & minor<18 → 6`, `6 & minor≥18 → 6.18`. Is that the forever rule, or will more `.config-6.N` variants appear? I'll keep the current rule unless you say otherwise.
+**Q5. ✓** Option (a): renamed all version-specific patch dirs to suffix-based names (`patches-4`, `patches-5`, `patches-6.18`). Extended to `patches-5.10.235` → `patches-5` and `patches-6.18.8` → `patches-6.18` (same principle, same inconsistency). `generate-patches.sh` should be called with the suffix (e.g. `4`) — `SOURCE="source-$1"` and `PATCH="patches/patches-$1"` then both resolve correctly.
 
-**Q5. CIP patches dir naming.**
-We have `cs4237b/patches/patches-4.4.302-cip97/` but `source-4/` and `.config-4`. The revamp's `get_suffix` returns `4` for any 4.x, so the patch lookup will miss. Options:
-  a) rename the patches dir to `patches-4` (matches source/config),
-  b) add a `source-4.4.302-cip97` symlink (keeps the CIP info in the name), or
-  c) make `get_suffix` return `4.4.302-cip97` when CIP is given.
-I'd go with (a) — simplest, parallel to `source-4`.
+**Q6. ✓** Keep `#!/bin/sh` POSIX throughout. busybox ash is the target.
 
-**Q6. Shell dialect.**
-Stick to `#!/bin/sh` (POSIX) everywhere? Or is it OK to switch scripts that need arrays to `#!/bin/bash`? I'd stay POSIX; Tiny Core's default is busybox ash.
-
-**Q7. `triplet_separator` globals.**
-OK to let it export `MAJOR/MINOR/PATCH` as shell globals (no `local` in POSIX sh)? That's the cleanest way to propagate parsed parts back to callers.
+**Q7. ✓** Globals (`MAJOR`/`MINOR`/`PATCH`) are fine. Done in Phase 1.
 
 ---
 
-## Decisions I made unilaterally (record of assumptions)
+## Decisions made without input from linic (2026-04-19)
 
-- (none yet; will append as I go)
+- **Q5 extended to all version-specific patch dirs:** Q5 asked specifically about `patches-4.4.302-cip97`. Also renamed `patches-5.10.235` → `patches-5` and `patches-6.18.8` → `patches-6.18` since they have the same inconsistency with the suffix convention. Reversible via git.
 
 ---
 

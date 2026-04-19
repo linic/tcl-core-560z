@@ -45,6 +45,9 @@ if ! cip_number_check "$CIP_NUMBER"; then
 fi
 
 resolve_kernel_urls "$CIP_NUMBER"
+if ! get_suffix "$MAJOR.$MINOR.$PATCH"; then
+  echo "Cannot determine config suffix for $MAJOR.$MINOR.$PATCH"; exit 1
+fi
 
 KERNEL_ID=$KERNEL_VERSION$LOCAL_VERSION
 RELEASE_VERSION=$KERNEL_VERSION.$TCL_MAJOR.$ITERATION
@@ -58,7 +61,7 @@ if [ ! -d $CACHE/$KERNEL_VERSION ]; then
   exit 10
 fi
 mkdir -p $RELEASE_DIRECTORY
-cp -v $KERNEL_CONFIGS/.config-$KERNEL_BRANCH $CACHE/$KERNEL_VERSION/.config
+cp -v $KERNEL_CONFIGS/.config-$SUFFIX $CACHE/$KERNEL_VERSION/.config
 cd $CACHE/$KERNEL_VERSION
 if md5sum -c $CACHE/$KERNEL_VERSION/.config.md5.txt; then
   echo "$KERNEL_VERSION is available from the $CACHE/$KERNEL_VERSION/"
