@@ -291,6 +291,51 @@ If any step fails, note which and I'll debug next session.
 
 ---
 
+## Installing the sudoers drop-in
+
+File: `testing-env/sudoers.d/claude-tcl-chroot` (tracked in git; review it before
+installing). It grants passwordless sudo to linic for three narrow command
+forms: the `tcl-chroot.sh` script (any sub-command), `usermod -aG staff linic`,
+and `chmod g+w /home/tc`.
+
+### Install
+
+```sh
+# 1. Validate syntax against a staged copy (must print "parsed OK").
+sudo visudo -cf /home/code/mes-repertoires-git/tcl-core-560z/testing-env/sudoers.d/claude-tcl-chroot
+
+# 2. Install with correct mode/owner. `install` atomically sets both.
+sudo install -m 0440 -o root -g root \
+    /home/code/mes-repertoires-git/tcl-core-560z/testing-env/sudoers.d/claude-tcl-chroot \
+    /etc/sudoers.d/claude-tcl-chroot
+
+# 3. Verify sudoers parses globally after install.
+sudo visudo -c
+```
+
+### Verify it works (no new sudo prompt should appear)
+
+```sh
+sudo -n /home/code/mes-repertoires-git/tcl-core-560z/testing-env/tcl-chroot.sh status
+```
+
+### Remove
+
+```sh
+sudo rm /etc/sudoers.d/claude-tcl-chroot
+```
+
+### Notes
+
+- The sudoers file in the repo is for review/history. The **live** copy at
+  `/etc/sudoers.d/` is what sudo actually reads. Re-run the `install` command
+  whenever you change the repo copy.
+- Paths in the rules are absolute. If the repo moves, update both the repo copy
+  and the live copy accordingly.
+- If you ever want to expand Claude's privileges (e.g. `apt install qemu-system-x86`
+  for the Phase 2 work), we add an explicit line here and re-install — never a
+  blanket `NOPASSWD: ALL`.
+
 ## Things out of scope / left alone
 
 - Kernel module testing (requires physical 560Z or full QEMU boot)

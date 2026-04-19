@@ -1,0 +1,19 @@
+# Scoped NOPASSWD sudoers for the 32-bit TCL testing chroot.
+# Intended install path: /etc/sudoers.d/claude-tcl-chroot
+# Mode: 0440, owner root:root (sudo ignores files with other modes/owners).
+#
+# Install / remove procedure is in testing-env/TESTING_ENV.md
+# (section "Installing the sudoers drop-in").
+
+# 1) The chroot management script itself.
+#    Any sub-command is allowed because the script validates internally.
+#    Covers setup / mount / enter / umount / status / destroy.
+#    This also indirectly covers /sbin/modprobe squashfs because the script
+#    runs it, and the script is already under sudo at that point.
+linic ALL=(root) NOPASSWD: /home/code/mes-repertoires-git/tcl-core-560z/testing-env/tcl-chroot.sh
+
+# 2) Add linic to the staff group (one-time). Exact arguments required.
+linic ALL=(root) NOPASSWD: /usr/sbin/usermod -aG staff linic
+
+# 3) Make /home/tc writable by group staff (one-time). Exact arguments required.
+linic ALL=(root) NOPASSWD: /usr/bin/chmod g+w /home/tc
