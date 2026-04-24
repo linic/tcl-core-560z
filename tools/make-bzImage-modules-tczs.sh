@@ -74,8 +74,8 @@ if md5sum -c $CACHE/$KERNEL_VERSION/.config.md5.txt; then
   ln $CACHE/$KERNEL_VERSION/usb-modules-$KERNEL_ID.tcz $RELEASE_DIRECTORY/usb-modules-$KERNEL_ID.tcz
   ln $CACHE/$KERNEL_VERSION/wireless-$KERNEL_ID.tcz $RELEASE_DIRECTORY/wireless-$KERNEL_ID.tcz
 else
-  echo "md5sum -c .config-$KERNEL_BRANCH.md5.txt didn't reveal a usable kernel already compiled with " \
-    "this .config-$KERNEL_BRANCH file. Getting the kernel.tar.xz and building the kernel and modules."
+  echo "md5sum -c $CACHE/$KERNEL_VERSION/.config.md5.txt didn't reveal a usable kernel already compiled with " \
+    "this .config-$SUFFIX file. Getting the kernel.tar.xz and building the kernel and modules."
   # Getting kernel.tar.xz or kernel.tar.gz
   cd $HOME_TC
   curl --remote-name $KERNEL_URL
