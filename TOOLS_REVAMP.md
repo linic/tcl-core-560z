@@ -99,6 +99,22 @@ Ordered roughly by dependency / risk:
 - **Phase 2b (usage/main skeleton in build-all.sh and make-bzImage-modules-tczs.sh)**: not a correctness issue, matches the rust-i586 style — deferred by mutual agreement.
 - **New branch for cross-repo build directory convention** (`/home/tc/<repo_name>/release/<version>/` and `/home/tc/<repo_name>/compile/<version>/`): agreed approach, deferred because it touches make-bzImage-modules-tczs.sh + Dockerfile + all three repos (tcl-core-560z, tcl-core-rust-i586, rust-i586) — deserves its own branch.
 
+### Phase 7 — generate-patches.sh moved to tools/ (2026-04-24)
+
+Moved `cs4237b/generate-patches.sh` → `tools/generate-patches.sh`.
+
+Improvements:
+- Sources `common.sh`; calls `get_suffix` to derive `SUFFIX` from the version triplet
+- Source dir lookup: tries `source-$SUFFIX` first, falls back to `source-$1` (full version) if absent — mirrors the CIP fallback in `pick-patches.sh`
+- Output dir: `patches/patches-$SUFFIX` (suffix-based, consistent with how `pick-patches.sh` and Dockerfile consume patches)
+- Repeated 3-line `sed` header-normalization block extracted into `normalize_patch_header()`;  uses `|` as delimiter to avoid escaping `/` in paths
+- `usage()` / `generate_patches()` / `main()` skeleton with `*.*.*)` arg guard
+- Invocation from `cs4237b/`: `../tools/generate-patches.sh 6.18.8`
+
+Design doc: `cs4237b/docs/generate-patches-design-v1.0.md`
+
+---
+
 ### Phase 6 — catch-up: the other Dockerfile missed by Phase 1 (2026-04-24)
 
 Symptom: `make` → `make edit` → `tools/edit-config.sh` fails at
@@ -130,6 +146,7 @@ Fixes in this phase:
 - `2026-04-24` — Diagnosis aid: `make build` for 6.18.24.17.1 failed at `make bzImage` (line 102) after ~26 min of compile. The script redirected output to `make.bzImage.log.txt` inside the Docker build layer, which is discarded on failure — so we had no visibility into the actual compiler error. Wrapped `make bzImage` in a failure branch that `tail -200`s the log to stdout so the Docker build output will show the real error on the next rebuild. Not a fix for the underlying build failure — only a visibility improvement so we can diagnose.
 - `2026-04-24` — CS4237B driver port fixes for 6.18 (pre-existing bugs that were masked earlier by the invisible log). Edited `cs4237b/source-6.18.8/...` and regenerated patches via `cs4237b/generate-patches.sh 6.18.8` (then moved output to `patches-6.18/`). Four fixes: (1) `cs4236_lib.c` `snd_cs4236_get_singlec` — patch deleted the `chip`/`reg`/`shift` decls but left `guard(spinlock_irqsave)(&chip->reg_lock)` and `ucontrol->... chip->cimage[reg] >> shift ...` still referencing them (upstream converted to `guard()` between 6.12 and 6.18; patches-6 had cleanly deleted the spin_lock/unlock block); removed those two lines; (2) `wss_lib.c` `snd_wss_mce_down` — two stacked `while` loops with one `}` (old `while (wss_inb...)` left next to new `while (i0 & ...)`); deleted the stale one so brace balance is restored; (3) `wss_lib.c` `snd_wss_mce_up` — stray `timeout = wss_inb(chip, CS4231P(REGSEL));` referencing an undeclared `timeout`; deleted (the preceding line already captured the register); (4) `wss_lib.c` `snd_wss_suspend`/`snd_wss_resume` — still referenced `chip->thinkpad_flag` and `snd_wss_thinkpad_twiddle()` after both were removed from wss.h / the driver; deleted the calls (patches-6 had already dropped them). End-to-end `make build` completed cleanly: kernel built, 7 tczs + core.gz + bzImage copied to `release/6.18.24.17.1/` with `.md5.txt` files, cache populated at `cache/6.18.24/`. On-device boot test is pending (needs the physical 560Z, per CLAUDE.md).
 - `2026-04-24` — Known issue in `cs4237b/generate-patches.sh`: `mkdir -pv patches-"$1"` (line 11) creates the dir in the wrong place (should be `patches/patches-$1`). The subsequent `diff > patches/patches-$1/...` lines fail unless the target dir already exists. Worked around manually (`mkdir -p patches/patches-<v>` + `rmdir` the stray top-level one). Not fixing here to keep this session tight — flag for a future small cleanup.
+- `2026-04-24` — Phase 7: moved `cs4237b/generate-patches.sh` → `tools/generate-patches.sh`. Added `usage/generate_patches/main` skeleton, sourced `common.sh`, calls `get_suffix` for suffix-based output dir (`patches/patches-$SUFFIX`), suffix-first + full-version fallback for source dir lookup, extracted repeated `sed` normalization into `normalize_patch_header()` with `|` delimiter. Old file deleted. Design doc at `cs4237b/docs/generate-patches-design-v1.0.md`.
 
 ### Decisions made without input from linic (Phase 3)
 
@@ -169,6 +186,6 @@ Fixes in this phase:
 
 ## Things out of scope / left alone
 
-- `cs4237b/switch-dev_dbg-to-dev_err.sh`, `cs4237b/generate-patches.sh` — not in `tools/`.
+- `cs4237b/switch-dev_dbg-to-dev_err.sh` — not in `tools/`.
 - `Dockerfile*`, `docker-compose*.yml` — only touching where needed for revamped scripts.
 - Behaviour of what the scripts actually *build* — this revamp is purely about the shell infrastructure.
