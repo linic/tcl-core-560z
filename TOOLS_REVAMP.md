@@ -95,9 +95,26 @@ Ordered roughly by dependency / risk:
 
 ## Open items / follow-ups
 
-- **Phase 3 end-to-end validation** on the 560Z.
+- **End-to-end build validation**: Nic is building in Docker on his Debian host (not on the 560Z). `make edit` failed because Phase 1 rename missed `Dockerfile.edit-config` and `edit-config.sh` — addressed in Phase 6.
 - **Phase 2b (usage/main skeleton in build-all.sh and make-bzImage-modules-tczs.sh)**: not a correctness issue, matches the rust-i586 style — deferred by mutual agreement.
 - **New branch for cross-repo build directory convention** (`/home/tc/<repo_name>/release/<version>/` and `/home/tc/<repo_name>/compile/<version>/`): agreed approach, deferred because it touches make-bzImage-modules-tczs.sh + Dockerfile + all three repos (tcl-core-560z, tcl-core-rust-i586, rust-i586) — deserves its own branch.
+
+### Phase 6 — catch-up: the other Dockerfile missed by Phase 1 (2026-04-24)
+
+Symptom: `make` → `make edit` → `tools/edit-config.sh` fails at
+`COPY --chown=tc:staff .config-v4.x ./.config-v4.x` (and v5.x, v6.x). Those files no longer exist after the Phase 1 rename.
+
+Root causes:
+1. `Dockerfile.edit-config` hardcodes the old v-prefixed config filenames.
+2. `Dockerfile.edit-config` calls `pick-config.sh $KERNEL_BRANCH` (e.g. `v6.x`) — the rewritten script expects a triplet.
+3. `Dockerfile.edit-config` does not COPY `tools/common.sh`, but pick-config.sh now sources it (added in Phase 1). Would fail at runtime even if the COPY issue were fixed.
+4. `edit-config.sh` docker-cp's the edited config back as `./.config-v4.x` / `.config-v5.x` / `.config-v6.x` — old names. Also doesn't know about the `6.18` suffix split.
+
+Fixes in this phase:
+- [x] `Dockerfile.edit-config`: wildcard `COPY .config-* ./`, add `COPY tools/common.sh`, call `pick-config.sh $KERNEL_VERSION`.
+- [x] `edit-config.sh`: after the CIP block, `get_suffix "$KERNEL_VERSION"` and docker-cp back as `.config-$SUFFIX`. Removes the old major-digit cascade and the broken old-name `[ ! .config-v6.x ]` no-op validation.
+- [x] Commit.
+- [ ] Validate via `sudo docker compose --progress=plain -f docker-compose.edit-config.yml build` (build step only — interactive menuconfig step still requires Nic).
 
 ---
 
