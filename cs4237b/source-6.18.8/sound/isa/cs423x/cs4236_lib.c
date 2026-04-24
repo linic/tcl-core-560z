@@ -443,9 +443,6 @@ static int snd_cs4236_get_singlec(struct snd_kcontrol *kcontrol, struct snd_ctl_
 	int mask = (kcontrol->private_value >> 16) & 0xff;
 	int invert = (kcontrol->private_value >> 24) & 0xff;
 	/* I removed code which was using cimage since cimage was removed since there's no control device on the 560z */
-	
-	guard(spinlock_irqsave)(&chip->reg_lock);
-	ucontrol->value.integer.value[0] = (chip->cimage[reg] >> shift) & mask;
 	if (invert)
 		ucontrol->value.integer.value[0] = mask - ucontrol->value.integer.value[0];
 	return 0;
