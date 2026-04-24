@@ -99,7 +99,11 @@ else
   make kernelrelease
   # Make the kernel
   echo "make bzImage...."
-  make bzImage > make.bzImage.log.txt 2>&1
+  if ! make bzImage > make.bzImage.log.txt 2>&1; then
+    echo "=== make bzImage FAILED — last 200 lines of make.bzImage.log.txt ==="
+    tail -200 make.bzImage.log.txt
+    exit 1
+  fi
   # Copying the bzImage which is the kernel
   cp $KERNEL_SOURCE_PATH/arch/x86/boot/bzImage $RELEASE_DIRECTORY/bzImage-$RELEASE_VERSION
   # Make the modules
