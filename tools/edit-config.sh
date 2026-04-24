@@ -56,13 +56,6 @@ KERNEL_VERSION=$1.$2.$3
 TCL_MAJOR_VERSION_NUMBER=$4
 ITERATION_NUMBER=$5
 
-if [ ! .config-v6.x ] || [ ! .config-v5.x ]; then
-  echo "Please make sure this folder is the base folder of "\
-    "https://github.com/linic/tcl-core-560z since .config-v6.x is "\
-    "and .config-v5.x are required."
-  exit 9
-fi
-
 if [ ! Dockerfile.edit_config ]; then
   echo "Please make sure this folder is the base folder of "\
     "https://github.com/linic/tcl-core-560z since Dockerfile is "\
@@ -153,16 +146,11 @@ fi
 HOME_TC=/home/tc
 KERNEL_SOURCE_PATH=$HOME_TC/$KERNEL_NAME
 
-if [ $1 = "4" ]; then
-  sudo docker cp tcl-core-560z-main-1:$KERNEL_SOURCE_PATH/.config ./.config-v4.x
-elif [ $1 = "5" ]; then
-  sudo docker cp tcl-core-560z-main-1:$KERNEL_SOURCE_PATH/.config ./.config-v5.x
-elif [ $1 = "6" ]; then
-  sudo docker cp tcl-core-560z-main-1:$KERNEL_SOURCE_PATH/.config ./.config-v6.x
-else
-  echo "$1 is not a supported kernel version."
+if ! get_suffix "$KERNEL_VERSION"; then
+  echo "$KERNEL_VERSION is not a supported kernel version."
   exit 78
 fi
+sudo docker cp tcl-core-560z-main-1:$KERNEL_SOURCE_PATH/.config ./.config-$SUFFIX
 
 sudo docker compose --progress=plain -f docker-compose.edit-config.yml down
 
