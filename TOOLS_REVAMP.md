@@ -113,8 +113,8 @@ Root causes:
 Fixes in this phase:
 - [x] `Dockerfile.edit-config`: wildcard `COPY .config-* ./`, add `COPY tools/common.sh`, call `pick-config.sh $KERNEL_VERSION`.
 - [x] `edit-config.sh`: after the CIP block, `get_suffix "$KERNEL_VERSION"` and docker-cp back as `.config-$SUFFIX`. Removes the old major-digit cascade and the broken old-name `[ ! .config-v6.x ]` no-op validation.
-- [x] Commit.
-- [ ] Validate via `sudo docker compose --progress=plain -f docker-compose.edit-config.yml build` (build step only — interactive menuconfig step still requires Nic).
+- [x] Commit (`6fccf12`).
+- [x] Validated: `docker compose build` on `docker-compose.edit-config.yml` succeeded end-to-end for `6.18.24.17.1`. Build step 11/12 output confirmed `pick-config.sh 6.18.24` → suffix `6.18` → `.config-6.18` → `.config`, siblings cleaned up. Image `linichotmailca/tcl-core-560z-edit-config:6.18.24.17.1` built. The interactive `make oldconfig` / `make menuconfig` steps that `edit-config.sh` runs after the build still require Nic's TTY.
 
 ---
 
