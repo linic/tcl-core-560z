@@ -50,7 +50,8 @@ RUN mkdir -pv $KERNEL_CONFIGS
 COPY --chown=tc:staff .config-* $KERNEL_CONFIGS/
 ENV CS4237B_PATCHES=$HOME_TC/cs4237b
 RUN mkdir -pv $CS4237B_PATCHES
-COPY --chown=tc:staff cs4237b/patches/ $CS4237B_PATCHES/
+COPY --chown=tc:staff cs4237b/src/sound/isa/cs4237b/ $CS4237B_PATCHES/sound-isa-cs4237b/
+COPY --chown=tc:staff cs4237b/src/integration-patches/ $CS4237B_PATCHES/integration/
 ENV CACHE=$HOME_TC/cache
 COPY --chown=tc:staff cache/$KERNEL_VERSION $CACHE/$KERNEL_VERSION
 COPY --chown=tc:staff cache/rootfs $CACHE/rootfs

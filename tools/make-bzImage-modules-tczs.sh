@@ -92,9 +92,9 @@ else
   fi
   $TOOLS/pick-config.sh $KERNEL_VERSION
 
-  mv $CS4237B_PATCHES/* .
-  $TOOLS/pick-patches.sh $KERNEL_VERSION
-  $TOOLS/patch-cs4236.sh
+  cp -r $CS4237B_PATCHES/sound-isa-cs4237b sound/isa/cs4237b
+  patch -p1 < $CS4237B_PATCHES/integration/sound-isa-Kconfig.patch
+  patch -p1 < $CS4237B_PATCHES/integration/sound-isa-Makefile.patch
   make oldconfig
   make kernelrelease
   # Make the kernel
