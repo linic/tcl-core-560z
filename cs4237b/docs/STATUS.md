@@ -1,6 +1,6 @@
 # cs4237b — current status (handoff for next session)
 
-Last updated: 2026-04-18
+Last updated: 2026-04-25
 
 ## Step 2 of HANDOFF.md: complete
 
@@ -42,6 +42,24 @@ HOME=/home/linic git -C /home/code/mes-repertoires-git/tcl-core-560z \
 
 Hard constraint observed: **zero modifications** to `wss_lib.c`,
 `wss.h`, or anything under `cs423x/`.
+
+## Step 4 of HANDOFF.md: build-pipeline integration — DONE (2026-04-25)
+
+Build pipeline wired for the new clean-driver approach (branch merged from
+main first):
+
+- `Dockerfile`: copies `cs4237b/src/sound/isa/cs4237b/` → container
+  `$CS4237B_PATCHES/sound-isa-cs4237b/` and `cs4237b/src/integration-patches/`
+  → `$CS4237B_PATCHES/integration/`. Old `cs4237b/patches/` no longer copied.
+- `tools/make-bzImage-modules-tczs.sh`: replaces `mv+pick-patches+patch-cs4236`
+  with `cp -r sound-isa-cs4237b` + `patch -p1` for both integration patches.
+- `tools/build-locally.sh`: same staging update for native-on-560Z builds.
+- `.config-6.18`: `CONFIG_SND_CS4236=y` → `=m`, added `CONFIG_SND_CS4237B=m`.
+- `Makefile`: ITERATION bumped to 2.
+
+**Blocked on sudo**: `make build` uses `sudo docker compose`. Claude cannot
+enter the sudo password in this workspace. Run `make build` from your terminal
+to kick off the Docker build.
 
 ## Step 3 of HANDOFF.md: blocked on hardware
 

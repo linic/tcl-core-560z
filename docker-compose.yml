@@ -5,7 +5,7 @@ services:
       args:
         - CORE_GZ=rootfs.gz
         - CIP_NUMBER=
-        - ITERATION_NUMBER=1
+        - ITERATION_NUMBER=2
         - KERNEL_BRANCH=v6.x
         - KERNEL_ID=6.18.24-tinycore-560z
         - KERNEL_NAME=linux-6.18.24
@@ -13,14 +13,14 @@ services:
         - KERNEL_URL=https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.24.tar.xz
         - KERNEL_VERSION=6.18.24
         - LOCAL_VERSION=-tinycore-560z
-        - RELEASE_DIRECTORY=/home/tc/release/6.18.24.17.1
-        - RELEASE_VERSION=6.18.24.17.1
+        - RELEASE_DIRECTORY=/home/tc/release/6.18.24.17.2
+        - RELEASE_VERSION=6.18.24.17.2
         - TCL_DOCKER_IMAGE_VERSION=17.x
         - TCL_RELEASE_TYPE=release
         - TCL_VERSION=17.x
-        - VERSION_QUINTUPLET=6.18.24.17.1
+        - VERSION_QUINTUPLET=6.18.24.17.2
       dockerfile: Dockerfile
       tags:
-        - linichotmailca/tcl-core-560z:6.18.24.17.1
+        - linichotmailca/tcl-core-560z:6.18.24.17.2
         - linichotmailca/tcl-core-560z:latest
 

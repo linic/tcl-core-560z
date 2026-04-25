@@ -58,8 +58,9 @@ stage_inputs()
   mkdir -pv "$KERNEL_CONFIGS"
   cp -v "$REPO_DIR"/.config-* "$KERNEL_CONFIGS/"
 
-  mkdir -pv "$CS4237B_PATCHES"
-  cp -rv "$REPO_DIR/cs4237b/patches/"* "$CS4237B_PATCHES/"
+  mkdir -pv "$CS4237B_PATCHES/sound-isa-cs4237b" "$CS4237B_PATCHES/integration"
+  cp -rv "$REPO_DIR/cs4237b/src/sound/isa/cs4237b/." "$CS4237B_PATCHES/sound-isa-cs4237b/"
+  cp -rv "$REPO_DIR/cs4237b/src/integration-patches/." "$CS4237B_PATCHES/integration/"
 
   mkdir -pv "$CACHE"
   if [ -d "$REPO_DIR/cache/$KERNEL_VERSION" ]; then
