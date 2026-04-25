@@ -62,14 +62,14 @@
 +	if (is_init_set) {
 +		dev_err(chip->card->dev, "snd_wss_wait - INIT is still 1. I0=0x%x\n", i0);
 +	}
-+}
-+
+ }
+ 
 +static void snd_wss_wait(struct snd_wss *chip)
 +{
 +	/* This loop timeouts roughly 0.025 second. */
 +	snd_wss_wait_delay(chip, 100);
- }
- 
++}
++
 +/* Functionally similar to snd_wss_out, but the waiting time between each INIT check
 + * is 10 microseconds instead of 100 microseconds. I'm not sure why, but since it works
 + * I stopped investigating. */
@@ -395,7 +395,7 @@
  static void snd_wss_busy_wait(struct snd_wss *chip)
  {
  	int timeout;
-@@ -358,53 +381,52 @@
+@@ -358,53 +381,51 @@
  		udelay(10);
  }
  
@@ -416,8 +416,7 @@
 -#endif
  	guard(spinlock_irqsave)(&chip->reg_lock);
  	chip->mce_bit |= CS4231_MCE;
-+	index_address_register = wss_inb(chip, CS4231P(REGSEL));
- 	timeout = wss_inb(chip, CS4231P(REGSEL));
+-	timeout = wss_inb(chip, CS4231P(REGSEL));
 -	if (timeout == 0x80)
 -		dev_dbg(chip->card->dev,
 -			"mce_up [0x%lx]: serious init problem - codec still busy\n",
@@ -425,7 +424,8 @@
 -	if (!(timeout & CS4231_MCE))
 -		wss_outb(chip, CS4231P(REGSEL),
 -			 chip->mce_bit | (timeout & 0x1f));
-+	set_mce = CS4231_MCE | (index_address_register & WSS_IA01234_MASK); 
++	index_address_register = wss_inb(chip, CS4231P(REGSEL));
++	set_mce = CS4231_MCE | (index_address_register & WSS_IA01234_MASK);
 +	is_mce_set = (index_address_register & CS4231_MCE) != 0;
 +	cannot_respond = index_address_register & CS4231_INIT;
 +	if (!is_mce_set && !cannot_respond)
@@ -477,7 +477,7 @@
  		return;
  
  	/*
-@@ -414,49 +436,75 @@
+@@ -414,49 +435,74 @@
  	 */
  	msleep(1);
  
@@ -509,13 +509,13 @@
 -
  	/* check condition up to 100 ms */
  	end_time = jiffies + msecs_to_jiffies(100);
+-	while (wss_inb(chip, CS4231P(REGSEL)) & CS4231_INIT) {
 +	/* Read from WSS I0 */
 +	i0 = wss_inb(chip, CS4231P(REGSEL));
 +	/* CS4231_INIT which is 0b1000 0000 
 +	 * INIT - This bit is read as 1 when the Codec is in a state in which it cannot respond to
 +	 * parallel interface cycles.*/
 +	while (i0 & CS4231_INIT) {
- 	while (wss_inb(chip, CS4231P(REGSEL)) & CS4231_INIT) {
  		if (time_after(jiffies, end_time)) {
 -			dev_err(chip->card->dev,
 -				"mce_down - auto calibration time out (3)\n");
@@ -576,7 +576,7 @@
  	}
  	if (format & CS4231_STEREO)
  		size >>= 1;
-@@ -504,9 +552,6 @@
+@@ -504,9 +550,6 @@
  			chip->trigger(chip, what, 0);
  	}
  	snd_wss_out(chip, CS4231_IFACE_CTRL, chip->image[CS4231_IFACE_CTRL]);
@@ -586,7 +586,7 @@
  	return result;
  }
  
-@@ -541,9 +586,6 @@
+@@ -541,9 +584,6 @@
  	}
  	if (channels > 1)
  		rformat |= CS4231_STEREO;
@@ -596,7 +596,7 @@
  	return rformat;
  }
  
-@@ -582,146 +624,81 @@
+@@ -582,146 +622,81 @@
  		     mute | chip->image[CS4231_LEFT_OUTPUT]);
  	snd_wss_dout(chip, CS4231_RIGHT_OUTPUT,
  		     mute | chip->image[CS4231_RIGHT_OUTPUT]);
@@ -796,7 +796,7 @@
  }
  
  /*
-@@ -776,9 +753,6 @@
+@@ -776,9 +751,6 @@
  	snd_wss_calibrate_mute(chip, 1);
  	snd_wss_mce_down(chip);
  
@@ -806,7 +806,7 @@
  	snd_wss_mce_up(chip);
  	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
  		chip->image[CS4231_IFACE_CTRL] &= ~(CS4231_PLAYBACK_ENABLE |
-@@ -791,10 +765,6 @@
+@@ -791,10 +763,6 @@
  	}
  	snd_wss_mce_down(chip);
  
@@ -817,7 +817,7 @@
  	snd_wss_mce_up(chip);
  	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
  		chip->image[CS4231_IFACE_CTRL] &= ~CS4231_AUTOCALIB;
-@@ -804,11 +774,6 @@
+@@ -804,11 +772,6 @@
  	}
  	snd_wss_mce_down(chip);
  
@@ -829,7 +829,7 @@
  	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
  		snd_wss_out(chip, CS4231_ALT_FEATURE_2,
  			    chip->image[CS4231_ALT_FEATURE_2]);
-@@ -821,10 +786,6 @@
+@@ -821,10 +784,6 @@
  	}
  	snd_wss_mce_down(chip);
  
@@ -840,7 +840,7 @@
  	snd_wss_mce_up(chip);
  	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
  		if (!(chip->hardware & WSS_HW_AD1848_MASK))
-@@ -833,17 +794,12 @@
+@@ -833,17 +792,12 @@
  	}
  	snd_wss_mce_down(chip);
  	snd_wss_calibrate_mute(chip, 0);
@@ -859,7 +859,7 @@
  		return -EAGAIN;
  	if (chip->mode & WSS_MODE_OPEN) {
  		chip->mode |= mode;
-@@ -964,6 +920,23 @@
+@@ -964,6 +918,23 @@
  	return 0;
  }
  
@@ -883,7 +883,7 @@
  static int snd_wss_playback_prepare(struct snd_pcm_substream *substream)
  {
  	struct snd_wss *chip = snd_pcm_substream_chip(substream);
-@@ -975,12 +948,49 @@
+@@ -975,12 +946,49 @@
  	chip->p_dma_size = size;
  	chip->image[CS4231_IFACE_CTRL] &= ~(CS4231_PLAYBACK_ENABLE | CS4231_PLAYBACK_PIO);
  	snd_dma_program(chip->dma1, runtime->dma_addr, size, DMA_MODE_WRITE | DMA_AUTOINIT);
@@ -936,7 +936,7 @@
  	return 0;
  }
  
-@@ -1008,22 +1018,16 @@
+@@ -1008,22 +1016,16 @@
  	chip->c_dma_size = size;
  	chip->image[CS4231_IFACE_CTRL] &= ~(CS4231_RECORD_ENABLE | CS4231_RECORD_PIO);
  	snd_dma_program(chip->dma2, runtime->dma_addr, size, DMA_MODE_READ | DMA_AUTOINIT);
@@ -968,7 +968,7 @@
  	return 0;
  }
  
-@@ -1039,52 +1043,35 @@
+@@ -1039,52 +1041,35 @@
  }
  EXPORT_SYMBOL(snd_wss_overrange);
  
@@ -1036,7 +1036,7 @@
  	return IRQ_HANDLED;
  }
  EXPORT_SYMBOL(snd_wss_interrupt);
-@@ -1111,266 +1098,147 @@
+@@ -1111,266 +1096,147 @@
  	return bytes_to_frames(substream->runtime, ptr);
  }
  
@@ -1418,7 +1418,7 @@
  	return 0;		/* all things are ok.. */
  }
  
-@@ -1431,20 +1299,6 @@
+@@ -1431,20 +1297,6 @@
  
  	runtime->hw = snd_wss_playback;
  
@@ -1439,7 +1439,7 @@
  	snd_pcm_limit_isa_dma_size(chip->dma1, &runtime->hw.buffer_bytes_max);
  	snd_pcm_limit_isa_dma_size(chip->dma1, &runtime->hw.period_bytes_max);
  
-@@ -1474,18 +1328,6 @@
+@@ -1474,18 +1326,6 @@
  
  	runtime->hw = snd_wss_capture;
  
@@ -1458,7 +1458,7 @@
  	snd_pcm_limit_isa_dma_size(chip->dma2, &runtime->hw.buffer_bytes_max);
  	snd_pcm_limit_isa_dma_size(chip->dma2, &runtime->hw.period_bytes_max);
  
-@@ -1525,25 +1367,6 @@
+@@ -1525,25 +1365,6 @@
  	return 0;
  }
  
@@ -1484,7 +1484,26 @@
  
  #ifdef CONFIG_PM
  
-@@ -1693,7 +1516,6 @@
+@@ -1556,18 +1377,13 @@
+ 		for (reg = 0; reg < 32; reg++)
+ 			chip->image[reg] = snd_wss_in(chip, reg);
+ 	}
+-	if (chip->thinkpad_flag)
+-		snd_wss_thinkpad_twiddle(chip, 0);
+ }
+ 
+ /* lowlevel resume callback for CS4231 */
+ static void snd_wss_resume(struct snd_wss *chip)
+ {
+ 	int reg;
+-	/* int timeout; */
+ 
+-	if (chip->thinkpad_flag)
+-		snd_wss_thinkpad_twiddle(chip, 1);
+ 	snd_wss_mce_up(chip);
+ 	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
+ 		for (reg = 0; reg < 32; reg++) {
+@@ -1693,7 +1509,6 @@
  
  int snd_wss_create(struct snd_card *card,
  		      unsigned long port,
@@ -1492,7 +1511,7 @@
  		      int irq, int dma1, int dma2,
  		      unsigned short hardware,
  		      unsigned short hwshare,
-@@ -1716,16 +1538,6 @@
+@@ -1716,16 +1531,6 @@
  		return -EBUSY;
  	}
  	chip->port = port;
@@ -1509,7 +1528,7 @@
  	if (!(hwshare & WSS_HWSHARE_IRQ))
  		if (devm_request_irq(card->dev, irq, snd_wss_interrupt, 0,
  				     "WSS", (void *) chip)) {
-@@ -1745,17 +1557,9 @@
+@@ -1745,17 +1550,9 @@
  		dev_err(chip->card->dev, "wss: can't grab DMA2 %d\n", dma2);
  		return -EBUSY;
  	}
@@ -1530,7 +1549,7 @@
  
  	/* global setup */
  	if (snd_wss_probe(chip) < 0)
-@@ -1814,8 +1618,6 @@
+@@ -1814,8 +1611,6 @@
  	/* global setup */
  	pcm->private_data = chip;
  	pcm->info_flags = 0;

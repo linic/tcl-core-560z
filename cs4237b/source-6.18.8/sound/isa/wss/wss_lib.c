@@ -393,8 +393,7 @@ void snd_wss_mce_up(struct snd_wss *chip)
 	guard(spinlock_irqsave)(&chip->reg_lock);
 	chip->mce_bit |= CS4231_MCE;
 	index_address_register = wss_inb(chip, CS4231P(REGSEL));
-	timeout = wss_inb(chip, CS4231P(REGSEL));
-	set_mce = CS4231_MCE | (index_address_register & WSS_IA01234_MASK); 
+	set_mce = CS4231_MCE | (index_address_register & WSS_IA01234_MASK);
 	is_mce_set = (index_address_register & CS4231_MCE) != 0;
 	cannot_respond = index_address_register & CS4231_INIT;
 	if (!is_mce_set && !cannot_respond)
@@ -460,7 +459,6 @@ void snd_wss_mce_down(struct snd_wss *chip)
 	 * INIT - This bit is read as 1 when the Codec is in a state in which it cannot respond to
 	 * parallel interface cycles.*/
 	while (i0 & CS4231_INIT) {
-	while (wss_inb(chip, CS4231P(REGSEL)) & CS4231_INIT) {
 		if (time_after(jiffies, end_time)) {
 			is_init_cleared=false;
 			break;
@@ -1379,18 +1377,13 @@ static void snd_wss_suspend(struct snd_wss *chip)
 		for (reg = 0; reg < 32; reg++)
 			chip->image[reg] = snd_wss_in(chip, reg);
 	}
-	if (chip->thinkpad_flag)
-		snd_wss_thinkpad_twiddle(chip, 0);
 }
 
 /* lowlevel resume callback for CS4231 */
 static void snd_wss_resume(struct snd_wss *chip)
 {
 	int reg;
-	/* int timeout; */
 
-	if (chip->thinkpad_flag)
-		snd_wss_thinkpad_twiddle(chip, 1);
 	snd_wss_mce_up(chip);
 	scoped_guard(spinlock_irqsave, &chip->reg_lock) {
 		for (reg = 0; reg < 32; reg++) {

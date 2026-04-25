@@ -22,9 +22,10 @@ usage()
 
 pick_config()
 {
-  KERNEL_VERSION="$1"
-  get_suffix "$@"
-  echo "Picking config $SUFFIX"
+  if ! get_suffix "$@"; then
+    return 1
+  fi
+  echo "Picking config .config-$SUFFIX"
 
   CONFIG_FILE=".config-$SUFFIX"
   if [ ! -f "$CONFIG_FILE" ]; then
@@ -33,7 +34,8 @@ pick_config()
   fi
 
   mv -v "$CONFIG_FILE" ".config"
-  rm -rvf ".config-*"
+  # Unquoted glob so the shell expands it.
+  rm -rvf .config-*
 
   return 0
 }
