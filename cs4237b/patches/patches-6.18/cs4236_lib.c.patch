@@ -202,7 +202,7 @@
  	chip->rate_constraint = snd_cs4236_xrate;
  	chip->set_playback_format = snd_cs4236_playback_format;
  	chip->set_capture_format = snd_cs4236_capture_format;
-@@ -435,13 +436,13 @@
+@@ -435,40 +436,25 @@
    .get = snd_cs4236_get_singlec, .put = snd_cs4236_put_singlec, \
    .private_value = reg | (shift << 8) | (mask << 16) | (invert << 24) }
  
@@ -215,11 +215,12 @@
 -	int shift = (kcontrol->private_value >> 8) & 0xff;
  	int mask = (kcontrol->private_value >> 16) & 0xff;
  	int invert = (kcontrol->private_value >> 24) & 0xff;
+-	
+-	guard(spinlock_irqsave)(&chip->reg_lock);
+-	ucontrol->value.integer.value[0] = (chip->cimage[reg] >> shift) & mask;
 +	/* I removed code which was using cimage since cimage was removed since there's no control device on the 560z */
- 	
- 	guard(spinlock_irqsave)(&chip->reg_lock);
- 	ucontrol->value.integer.value[0] = (chip->cimage[reg] >> shift) & mask;
-@@ -450,25 +451,13 @@
+ 	if (invert)
+ 		ucontrol->value.integer.value[0] = mask - ucontrol->value.integer.value[0];
  	return 0;
  }
  
@@ -250,7 +251,7 @@
  }
  
  #define CS4236_DOUBLE(xname, xindex, left_reg, right_reg, shift_left, shift_right, mask, invert) \
-@@ -928,11 +917,7 @@
+@@ -928,11 +914,7 @@
  		val = (chip->image[CS4231_ALT_FEATURE_1] & ~0x0e) | (0<<2) | (enable << 1);
  		change = val != chip->image[CS4231_ALT_FEATURE_1];
  		snd_wss_out(chip, CS4231_ALT_FEATURE_1, val);
