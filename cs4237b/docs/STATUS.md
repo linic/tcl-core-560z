@@ -57,9 +57,21 @@ main first):
 - `.config-6.18`: `CONFIG_SND_CS4236=y` → `=m`, added `CONFIG_SND_CS4237B=m`.
 - `Makefile`: ITERATION bumped to 2.
 
-**Blocked on sudo**: `make build` uses `sudo docker compose`. Claude cannot
-enter the sudo password in this workspace. Run `make build` from your terminal
-to kick off the Docker build.
+**Build completed successfully (2026-04-25).** `make build` produced all
+artifacts in `release/6.18.24.17.2/`. The new bzImage (md5 3fca7275) differs
+from 17.1 (66889e07), confirming new code was compiled.
+
+**SND_CS4237B built-in, not module.** `make oldconfig` showed both SND_CS4236
+and SND_CS4237B as `[Y/n/?]` (no `m` option) and accepted `y`. They ended up
+`=y` (built-in) even though `.config-6.18` specified `=m`. The alsa-modules.tcz
+is a compatibility stub ("No kernel/sound — modules are built-in"). This was
+already the case for ITERATION=1, so the `=m` setting is ignored by oldconfig
+in this config. Root cause not yet diagnosed (likely a `bool` dependency in the
+ISA sound chain). Built-in is functionally fine for the 560Z: snd-cs4236 will
+fail probe (no CSC0010), then snd-cs4237b will bind.
+
+**Kconfig wiring verified.** The `source "sound/isa/cs4237b/Kconfig"` line was
+picked up; the option appeared correctly in the ISA sound device list.
 
 ## Step 3 of HANDOFF.md: blocked on hardware
 
