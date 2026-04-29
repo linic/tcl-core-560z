@@ -24,18 +24,16 @@ Phased — each phase ends with one commit appending findings to this journal (o
 
 - [x] Phase 0 — Journal scaffold. Commit this file.
 - [x] Phase 1 — Inventory pass. `.config-6.18` read end-to-end, every section tagged Required / Useful / Surface / Already-good in `journal/CONFIG_INVENTORY_6.18.md`. (this commit)
-- [ ] Phase 2 — Architectural defaults. Identify `=y` options that are mismatched with 560Z hardware (e.g. SMP, NUMA, modern x86 features, virtualisation guest/host code, large-page support, big-iron NICs, RAID, NVMe, SCSI, modern wireless stacks). High-confidence "disable" candidates.
-- [ ] Phase 3 — Subsystem keep-lists. For each of the five must-keep subsystems (networking, sound, video, hdd, usb), list the symbols that are load-bearing and must NOT be disabled. Cross-reference Phase 2 to make sure none of those candidates accidentally killed something needed.
-- [ ] Phase 4 — Debug / instrumentation / tracing. Kernels carry a lot of debug surface (`CONFIG_DEBUG_*`, `CONFIG_FTRACE`, `CONFIG_KPROBES`, `CONFIG_BPF*`). Catalogue what's enabled and what is candidate-for-disable on a tight-RAM box.
-- [ ] Phase 5 — Crypto / security / namespaces / cgroups. Things that container-y distros leave on by default but that a single-user 560Z almost certainly does not need.
-- [ ] Phase 6 — Filesystems beyond what TCL actually mounts. TCL is squashfs + tmpfs + ext4-ish; many other FS drivers may be `=y`.
-- [ ] Phase 7 — Synthesis. Produce `journal/CONFIG_DISABLE_CANDIDATES_6.18.md` — three buckets: `safe-to-disable`, `probably-safe-verify`, `keep`. Each candidate has a one-line reason.
-- [ ] Phase 8 — Close-out. Final journal entry, list of open questions for linic, things explicitly out of scope.
+- [x] Phases 2–6 — Architectural / subsystem / debug / security / FS analyses. Folded directly into the inventory tags (`Required` / `Useful` / `Surface` / `Already-good`) and into the synthesis. The original plan called for separate per-area files; that turned out to be premature decomposition. The inventory + the synthesis are the right level of granularity for a report-only branch.
+- [x] Phase 7 — Synthesis. `journal/CONFIG_DISABLE_CANDIDATES_6.18.md` — three buckets (A/B/C) plus a Don't-touch keep-list and a suggested order of operations for a future menuconfig pass.
+- [x] Phase 8 — Close-out. This commit. Open items below.
 
 ## Log
 
 - 2026-04-28 — Phase 0: branch `config-investigation-6.18` created off `cs4237b-clean-driver-wip`. Journal scaffold committed. No `.config` changes in this branch.
 - 2026-04-28 — Phase 1: full inventory in `journal/CONFIG_INVENTORY_6.18.md`. Key takeaways: the config is already very lean (one of the leanest mainline `=y` configs I've seen for x86) — most of the cheap wins are already taken (no SMP, no HIGHMEM, no DRM, no FTRACE, no KASAN, no IO_URING, no KALLSYMS, `-Os`, SLUB_TINY). The remaining size budget lives in: BPF/perf/tracing scaffolding, namespaces, the asymmetric-crypto subtree pulled in by signed-regdb, AES-NI dead code, and a handful of dma-buf / NVMEM / sound-of-the-art helpers that are referenced by nothing.
+- 2026-04-28 — Phases 2–7: synthesised into `journal/CONFIG_DISABLE_CANDIDATES_6.18.md`. Three buckets: A (high-confidence dead code), B (probably safe, verify on boot), C (big-ticket conditional trades — signed regdb being the largest single knob). Don't-touch keep-list at the end.
+- 2026-04-28 — Phase 8 close-out. This commit. No `.config` was modified in this branch; the deliverable is two markdown files under `journal/`.
 
 ## Clarifying questions for linic
 
@@ -55,6 +53,21 @@ Numbered so you can reply "Q3: option b" without ambiguity. Best guess included 
 
 **Q5.** For Phase 5 (security/namespaces/cgroups): TinyCore *itself* doesn't use namespaces or cgroups, but `extensions` you load might (e.g. some Docker-ish extensions). Should I treat namespaces/cgroups as "safe to disable" or "verify with what extensions you actually use"?
 - Best guess: **safe to disable on a 560Z** — you've never mentioned running containerised workloads on the 560Z, and the RAM budget would not allow it anyway.
+
+**Q6.** `# CONFIG_INPUT_EVDEV is not set`. Modern Xorg uses `evdev` to read `/dev/input/event*`. With evdev off, the desktop relies on the legacy `INPUT_MOUSEDEV` (`/dev/input/mice`) + AT keyboard interface. Does the 560Z desktop currently work without `evdev`, or has nobody noticed because everything you launch in `tools/desktop.sh` happens to use the legacy interfaces?
+- Best guess: **it works because TCL's Xorg is configured for legacy mouse/kbd, not evdev.** Worth verifying though.
+
+**Q7.** `# CONFIG_USB_STORAGE is not set` and `# CONFIG_HID_SUPPORT is not set`. Both are intentional, I assume — but worth confirming. Disabling USB-storage means no install-from-USB-stick; disabling HID means no USB keyboards/mice/joysticks.
+- Best guess: **both intentional**, given how lean the rest of the config is. Just flagging.
+
+**Q8.** SQUASHFS compressors enabled: `ZLIB`, `LZ4`, `ZSTD`. Which compressors do the `.tcz` files you actually use require? Stock TCL has historically been zlib/gzip; some newer builds use LZ4. ZSTD on `.tcz` would be unusual. If ZSTD is unused, dropping `SQUASHFS_ZSTD` plus the underlying `ZSTD_DECOMPRESS`/`ZSTD_COMMON` is a real win.
+- Best guess: **drop ZSTD**, keep ZLIB+LZ4.
+
+**Q9.** The biggest single trade is C1: drop `CONFIG_CFG80211_REQUIRE_SIGNED_REGDB`. Are you OK shipping an unsigned regdb file on the 560Z? It removes the entire asymmetric-crypto subtree (RSA/DH/ECC/X.509/PKCS7) from the kernel. This is the highest-impact knob in the whole report.
+- Best guess: **yes, fine for a personal box on a known network**. But this is the most consequential decision — wouldn't dare flip it without your sign-off.
+
+**Q10.** Does the 560Z run with PCMCIA wifi at all in your current setup, or has it been USB-only for a while? `# CONFIG_PCCARD is not set` already, so the kernel can't do PCMCIA today — just wanting to confirm that's intentional and not something I should re-add.
+- Best guess: **USB-only is fine** — the README's recent sections all reference USB-Ethernet and `rtl8192cu` (which is USB-attached).
 
 ## Decisions made without input (record of assumptions)
 
