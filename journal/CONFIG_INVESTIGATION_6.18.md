@@ -22,8 +22,8 @@ This file is the journal for that investigation, per the `TRY_YOUR_BEST_SHOT.md`
 
 Phased — each phase ends with one commit appending findings to this journal (or a sibling file under `journal/`). Lowest risk first.
 
-- [x] Phase 0 — Journal scaffold. Commit this file. (this commit)
-- [ ] Phase 1 — Inventory pass. Read `.config-6.18` end-to-end. Tag every `=y` against a category (cpu/platform, memory, fs, net, sound, video, hdd, usb, debug, crypto, security, misc) in `journal/CONFIG_INVENTORY_6.18.md`. No "disable/keep" judgments yet — just classification.
+- [x] Phase 0 — Journal scaffold. Commit this file.
+- [x] Phase 1 — Inventory pass. `.config-6.18` read end-to-end, every section tagged Required / Useful / Surface / Already-good in `journal/CONFIG_INVENTORY_6.18.md`. (this commit)
 - [ ] Phase 2 — Architectural defaults. Identify `=y` options that are mismatched with 560Z hardware (e.g. SMP, NUMA, modern x86 features, virtualisation guest/host code, large-page support, big-iron NICs, RAID, NVMe, SCSI, modern wireless stacks). High-confidence "disable" candidates.
 - [ ] Phase 3 — Subsystem keep-lists. For each of the five must-keep subsystems (networking, sound, video, hdd, usb), list the symbols that are load-bearing and must NOT be disabled. Cross-reference Phase 2 to make sure none of those candidates accidentally killed something needed.
 - [ ] Phase 4 — Debug / instrumentation / tracing. Kernels carry a lot of debug surface (`CONFIG_DEBUG_*`, `CONFIG_FTRACE`, `CONFIG_KPROBES`, `CONFIG_BPF*`). Catalogue what's enabled and what is candidate-for-disable on a tight-RAM box.
@@ -35,6 +35,7 @@ Phased — each phase ends with one commit appending findings to this journal (o
 ## Log
 
 - 2026-04-28 — Phase 0: branch `config-investigation-6.18` created off `cs4237b-clean-driver-wip`. Journal scaffold committed. No `.config` changes in this branch.
+- 2026-04-28 — Phase 1: full inventory in `journal/CONFIG_INVENTORY_6.18.md`. Key takeaways: the config is already very lean (one of the leanest mainline `=y` configs I've seen for x86) — most of the cheap wins are already taken (no SMP, no HIGHMEM, no DRM, no FTRACE, no KASAN, no IO_URING, no KALLSYMS, `-Os`, SLUB_TINY). The remaining size budget lives in: BPF/perf/tracing scaffolding, namespaces, the asymmetric-crypto subtree pulled in by signed-regdb, AES-NI dead code, and a handful of dma-buf / NVMEM / sound-of-the-art helpers that are referenced by nothing.
 
 ## Clarifying questions for linic
 
